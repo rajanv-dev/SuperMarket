@@ -17,15 +17,22 @@ const logger = require('./utils/logger');
 // ── Route imports ─────────────────────────────────────────────────────────────
 const authRoutes = require('./modules/auth/auth.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
+const productRoutes = require('./modules/products/products.routes');
 
 // ── App setup ─────────────────────────────────────────────────────────────────
 const app = express();
 const httpServer = createServer(app);
 
+const allowedOrigins = [
+  process.env.CLIENT_ORIGIN,
+  'http://localhost:5173',
+  'http://localhost:5175',
+].filter(Boolean);
+
 // ── Socket.IO (Phase 6) ───────────────────────────────────────────────────────
 const io = new SocketServer(httpServer, {
   cors: {
-    origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -41,7 +48,7 @@ connectDB();
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -69,20 +76,62 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 
-// ── Health check ──────────────────────────────────────────────────────────────
+// ── Health checks ─────────────────────────────────────────────────────────────
+// 1. API service health check
 app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
+  res.status(200).json({
     status: 'ok',
-    environment: process.env.NODE_ENV,
+    service: 'SUPER API',
     timestamp: new Date().toISOString(),
   });
+});
+
+// 2. Database connectivity health check (Supabase)
+app.get('/api/health/db', async (req, res) => {
+  try {
+    const { supabaseServer, isSupabaseConfigured } = require('./config/supabase');
+    if (!isSupabaseConfigured || !supabaseServer) {
+      return res.status(503).json({
+        status: 'error',
+        service: 'SUPER Database',
+        connected: false,
+        message: 'Database service not configured',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const { data, error } = await supabaseServer.from('products').select('id').limit(1);
+    if (error) {
+      return res.status(503).json({
+        status: 'error',
+        service: 'SUPER Database',
+        connected: false,
+        message: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return res.status(200).json({
+      status: 'ok',
+      service: 'SUPER Database',
+      connected: true,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    return res.status(503).json({
+      status: 'error',
+      service: 'SUPER Database',
+      connected: false,
+      message: err.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 // ── API routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-// app.use('/api/products',    productRoutes);
+app.use('/api/products', productRoutes);
 // app.use('/api/categories',  categoryRoutes);
 // app.use('/api/cart',        cartRoutes);
 // app.use('/api/orders',      orderRoutes);
