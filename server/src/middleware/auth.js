@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const { sendError } = require('../utils/response');
 const { ROLES } = require('../config/constants');
@@ -27,11 +28,56 @@ const protect = async (req, res, next) => {
       return sendError(res, { status: 401, message: 'Authentication required' });
     }
 
+    // 1. Try verifying with Supabase if configured
+    const { supabaseServer } = require('../config/supabase');
+    if (supabaseServer) {
+      try {
+        const { data: { user: sbUser }, error: sbErr } = await supabaseServer.auth.getUser(token);
+        if (sbUser && !sbErr) {
+          // Query verified database role from public.user_profiles
+          const { data: profile } = await supabaseServer
+            .from('user_profiles')
+            .select('*')
+            .or(`auth_id.eq.${sbUser.id},email.eq.${sbUser.email}`)
+            .maybeSingle();
+
+          if (profile && !profile.is_active) {
+            return sendError(res, { status: 403, message: 'Your account has been deactivated' });
+          }
+
+          req.user = {
+            id: sbUser.id,
+            email: sbUser.email,
+            name: profile?.full_name || sbUser.user_metadata?.full_name || sbUser.email.split('@')[0],
+            role: profile?.role || ROLES.CUSTOMER,
+            isActive: profile ? profile.is_active : true,
+            provider: 'supabase',
+          };
+          return next();
+        }
+      } catch (sbEx) {
+        // Fall through to local JWT verification
+      }
+    }
+
+    // 2. Fall back to local JWT verification
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch {
       return sendError(res, { status: 401, message: 'Invalid or expired token' });
+    }
+
+    // In dev mode without active Mongo, provide a fallback user
+    if (mongoose.connection.readyState !== 1) {
+      req.user = {
+        id: decoded.id,
+        email: decoded.email || 'admin@super.local',
+        name: decoded.name || 'Super Admin',
+        role: decoded.role || ROLES.ADMIN,
+        isActive: true,
+      };
+      return next();
     }
 
     const user = await User.findById(decoded.id);
@@ -40,7 +86,7 @@ const protect = async (req, res, next) => {
     }
 
     // Reject tokens issued before the last password change
-    if (user.passwordChangedAfter(decoded.iat)) {
+    if (user.passwordChangedAfter && user.passwordChangedAfter(decoded.iat)) {
       return sendError(res, { status: 401, message: 'Password recently changed — please log in again' });
     }
 

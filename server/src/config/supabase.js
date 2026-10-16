@@ -1,9 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+const supabaseKey =
+  process.env.SUPABASE_SECRET_KEY && !process.env.SUPABASE_SECRET_KEY.includes('REPLACE')
+    ? process.env.SUPABASE_SECRET_KEY
+    : process.env.SUPABASE_PUBLISHABLE_KEY;
 
-export const supabaseServer = (supabaseUrl && supabaseKey)
+const supabaseServer = (supabaseUrl && supabaseKey)
   ? createClient(supabaseUrl, supabaseKey, {
       auth: {
         autoRefreshToken: false,
@@ -12,4 +15,9 @@ export const supabaseServer = (supabaseUrl && supabaseKey)
     })
   : null;
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+
+module.exports = {
+  supabaseServer,
+  isSupabaseConfigured,
+};

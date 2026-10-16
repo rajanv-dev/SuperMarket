@@ -30,10 +30,13 @@ import ProfilePage from './pages/customer/ProfilePage';
 // ── Admin pages ───────────────────────────────────────────────────────────────
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminProducts from './pages/admin/AdminProducts';
+import AdminCategories from './pages/admin/AdminCategories';
+import AdminCustomers from './pages/admin/AdminCustomers';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminInventory from './pages/admin/AdminInventory';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
+import AdminSettings from './pages/admin/AdminSettings';
 
 // ── Cashier pages ─────────────────────────────────────────────────────────────
 import POSTerminal from './pages/cashier/POSTerminal';
@@ -49,13 +52,15 @@ import StockMovements from './pages/inventory/StockMovements';
 import NotFoundPage from './pages/NotFoundPage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 
+import AccessDeniedPage from './pages/AccessDeniedPage';
+
 // ── Route guards ──────────────────────────────────────────────────────────────
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, token } = useAuthStore();
 
   if (!token || !user) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+    return <AccessDeniedPage />;
   }
   return children;
 };
@@ -77,9 +82,11 @@ export default function App() {
     if (supabase) {
       const {
         data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
+      } = supabase.auth.onAuthStateChange((event, session) => {
         if (session?.user) {
           setSupabaseSession(session);
+        } else if (event === 'SIGNED_OUT') {
+          useAuthStore.setState({ user: null, token: null });
         }
       });
 
@@ -161,10 +168,14 @@ export default function App() {
         }>
           <Route index element={<AdminDashboard />} />
           <Route path="products" element={<AdminProducts />} />
-          <Route path="users" element={<AdminUsers />} />
-          <Route path="orders" element={<AdminOrders />} />
+          <Route path="categories" element={<AdminCategories />} />
+          <Route path="customers" element={<AdminCustomers />} />
           <Route path="inventory" element={<AdminInventory />} />
+          <Route path="orders" element={<AdminOrders />} />
+          <Route path="reports" element={<AdminAnalytics />} />
           <Route path="analytics" element={<AdminAnalytics />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="settings" element={<AdminSettings />} />
         </Route>
 
         {/* ── Cashier / POS ────────────────────────────────────────────────── */}

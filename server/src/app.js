@@ -16,7 +16,7 @@ const logger = require('./utils/logger');
 
 // ── Route imports ─────────────────────────────────────────────────────────────
 const authRoutes = require('./modules/auth/auth.routes');
-// Phase 2+ routes will be imported here as they are built
+const adminRoutes = require('./modules/admin/admin.routes');
 
 // ── App setup ─────────────────────────────────────────────────────────────────
 const app = express();
@@ -81,7 +81,7 @@ app.get('/api/health', (req, res) => {
 
 // ── API routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-// Additional route groups will be mounted here:
+app.use('/api/admin', adminRoutes);
 // app.use('/api/products',    productRoutes);
 // app.use('/api/categories',  categoryRoutes);
 // app.use('/api/cart',        cartRoutes);
