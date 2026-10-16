@@ -20,12 +20,17 @@ export default function CustomerLayout() {
   useEffect(() => {
     if (!supabase) return;
 
-    // Check session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setSupabaseSession(session);
-      }
-    });
+    // Check session on mount safely
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (session?.user) {
+          setSupabaseSession(session);
+        }
+      })
+      .catch((err) => {
+        console.warn('Session check failed:', err?.message || err);
+      });
 
     // Listen to real-time auth state changes (OAuth callback, sign in, sign out)
     const {
