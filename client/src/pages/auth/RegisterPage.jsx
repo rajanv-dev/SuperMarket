@@ -40,7 +40,7 @@ export default function RegisterPage() {
 
     const result = await registerUser(payload);
     if (result.success) {
-      toast.success('Account created! Welcome to SUPER 🎉');
+      toast.success('Account created! Welcome to VRK Supermarket 🎉');
       navigate('/');
     } else {
       toast.error(result.error || 'Registration failed');
@@ -61,7 +61,7 @@ export default function RegisterPage() {
   return (
     <div>
       <h1 className="text-2xl font-display font-bold text-slate-900 mb-1">Create account</h1>
-      <p className="text-sm text-slate-500 mb-6">Start shopping fresh with SUPER</p>
+      <p className="text-sm text-slate-500 mb-6">Start shopping fresh with VRK Supermarket</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <Field id="name" label="Full Name" icon={User} error={errors.name}>

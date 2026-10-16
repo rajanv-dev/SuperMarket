@@ -124,7 +124,7 @@ export default function AdminLoginPage() {
             <Shield className="w-7 h-7" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-white tracking-tight">
-            SUPER Admin Portal
+            VRK Supermarket Admin Portal
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
             Authorized Administrator & Staff Management Access

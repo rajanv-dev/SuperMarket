@@ -878,8 +878,8 @@ export const adminService = {
     if (error) throw error;
     return (
       data || {
-        store_name: 'SUPER Supermarket',
-        email: 'admin@super.local',
+        store_name: 'VRK Supermarket',
+        email: 'support@vrksupermarket.com',
         phone: '+91 98765 43210',
         address: '123 Market Street, Tech Park',
         tax_rate: 5.0,

@@ -28,6 +28,8 @@ const httpServer = createServer(app);
 
 const allowedOrigins = [
   process.env.CLIENT_ORIGIN,
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+  process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null,
   'http://localhost:5173',
   'http://localhost:5175',
 ].filter(Boolean);
@@ -51,7 +53,13 @@ connectDB();
 app.use(helmet());
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // allow requests with no origin (same-origin rewrites, curl, mobile) or matching allowed origins
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -84,7 +92,7 @@ if (process.env.NODE_ENV !== 'test') {
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    service: 'SUPER API',
+    service: 'VRK Supermarket API',
     timestamp: new Date().toISOString(),
   });
 });
@@ -96,7 +104,7 @@ app.get('/api/health/db', async (req, res) => {
     if (!isSupabaseConfigured || !supabaseServer) {
       return res.status(503).json({
         status: 'error',
-        service: 'SUPER Database',
+        service: 'VRK Supermarket Database',
         connected: false,
         message: 'Database service not configured',
         timestamp: new Date().toISOString(),
@@ -107,7 +115,7 @@ app.get('/api/health/db', async (req, res) => {
     if (error) {
       return res.status(503).json({
         status: 'error',
-        service: 'SUPER Database',
+        service: 'VRK Supermarket Database',
         connected: false,
         message: error.message,
         timestamp: new Date().toISOString(),
@@ -116,14 +124,14 @@ app.get('/api/health/db', async (req, res) => {
 
     return res.status(200).json({
       status: 'ok',
-      service: 'SUPER Database',
+      service: 'VRK Supermarket Database',
       connected: true,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
     return res.status(503).json({
       status: 'error',
-      service: 'SUPER Database',
+      service: 'VRK Supermarket Database',
       connected: false,
       message: err.message,
       timestamp: new Date().toISOString(),
@@ -168,9 +176,9 @@ io.on('connection', (socket) => {
 // ── Start server ──────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '5000', 10);
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   httpServer.listen(PORT, () => {
-    logger.info(`SUPER API running on port ${PORT} [${process.env.NODE_ENV}]`);
+    logger.info(`VRK Supermarket API running on port ${PORT} [${process.env.NODE_ENV}]`);
   });
 }
 
@@ -193,4 +201,9 @@ process.on('unhandledRejection', (err) => {
   shutdown('unhandledRejection');
 });
 
-module.exports = { app, httpServer, io }; // exported for tests
+// Attach helpers to app for backward-compatible destructuring and tests
+app.app = app;
+app.httpServer = httpServer;
+app.io = io;
+
+module.exports = app;

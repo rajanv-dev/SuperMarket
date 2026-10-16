@@ -355,7 +355,7 @@ export default function CartPage() {
                       type="text"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      placeholder="e.g. SUPER10 or FREESHIP"
+                      placeholder="e.g. VRK10 or FREESHIP"
                       className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs uppercase font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                     <button

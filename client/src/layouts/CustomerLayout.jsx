@@ -85,8 +85,8 @@ export default function CustomerLayout() {
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 shrink-0">
-              <span className="text-2xl font-display font-extrabold bg-gradient-to-r from-primary-600 to-emerald-600 bg-clip-text text-transparent">
-                🛒 SUPER
+              <span className="text-xl sm:text-2xl font-display font-extrabold bg-gradient-to-r from-primary-600 to-emerald-600 bg-clip-text text-transparent">
+                🛒 VRK Supermarket
               </span>
             </Link>
 
@@ -358,7 +358,7 @@ export default function CustomerLayout() {
       <footer className="bg-slate-900 text-slate-400 mt-16 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
           <div>
-            <h3 className="text-white font-display font-bold text-lg mb-3">🛒 SUPER</h3>
+            <h3 className="text-white font-display font-bold text-lg mb-3">🛒 VRK Supermarket</h3>
             <p className="text-sm leading-relaxed text-slate-400">
               Fresh groceries, farm produce, and daily essentials delivered fast.
             </p>
@@ -386,7 +386,7 @@ export default function CustomerLayout() {
           </div>
         </div>
         <div className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} SUPER Supermarket Platform · All rights reserved.
+          © {new Date().getFullYear()} VRK Supermarket · All rights reserved.
         </div>
       </footer>
     </div>

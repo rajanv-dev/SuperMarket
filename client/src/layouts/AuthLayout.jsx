@@ -15,10 +15,10 @@ export default function AuthLayout() {
       <div className="relative w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <span className="text-4xl font-display font-extrabold text-white tracking-tight">
-            🛒 SUPER
+          <span className="text-3xl font-display font-extrabold text-white tracking-tight">
+            🛒 VRK Supermarket
           </span>
-          <p className="mt-1 text-primary-200 text-sm">Supermarket Management Platform</p>
+          <p className="mt-1 text-primary-200 text-sm">Fresh Groceries & Online Shopping</p>
         </div>
 
         <div className="card p-8 animate-scale-in">

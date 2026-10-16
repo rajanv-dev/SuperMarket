@@ -16,7 +16,7 @@ export default function CashierLayout() {
       <header className="bg-surface-800 border-b border-surface-700 px-4 h-14 flex items-center justify-between">
         <span className="font-display font-bold text-white flex items-center gap-2">
           <Receipt className="w-5 h-5 text-primary-400" />
-          SUPER POS
+          VRK Supermarket POS
         </span>
         <nav className="flex items-center gap-1">
           {navItems.map((item) => (

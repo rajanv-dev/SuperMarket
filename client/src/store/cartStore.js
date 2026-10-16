@@ -183,9 +183,9 @@ const useCartStore = create(
           return { success: false, error: 'Your cart is empty' };
         }
 
-        if (cleanCode === 'SUPER10') {
+        if (cleanCode === 'VRK10' || cleanCode === 'SUPER10') {
           const discount = Math.round(subtotal * 0.1);
-          const coupon = { code: 'SUPER10', discountPercent: 10, discountAmount: discount };
+          const coupon = { code: cleanCode, discountPercent: 10, discountAmount: discount };
           set({ coupon });
           return { success: true, message: '10% discount applied!', coupon };
         }
@@ -196,13 +196,13 @@ const useCartStore = create(
           return { success: true, message: 'Free shipping applied!', coupon };
         }
 
-        if (cleanCode === 'SUPER50' && subtotal >= 300) {
-          const coupon = { code: 'SUPER50', discountPercent: 0, discountAmount: 50 };
+        if ((cleanCode === 'VRK50' || cleanCode === 'SUPER50') && subtotal >= 300) {
+          const coupon = { code: cleanCode, discountPercent: 0, discountAmount: 50 };
           set({ coupon });
           return { success: true, message: '₹50 discount applied!', coupon };
         }
 
-        return { success: false, error: 'Invalid or expired coupon code. Try SUPER10 or FREESHIP' };
+        return { success: false, error: 'Invalid or expired coupon code. Try VRK10 or FREESHIP' };
       },
 
       removeCoupon: () => set({ coupon: null }),
