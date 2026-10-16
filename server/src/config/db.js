@@ -20,7 +20,11 @@ const connectDB = async () => {
     logger.info(`MongoDB connected: ${conn.connection.host}`);
   } catch (err) {
     logger.error(`MongoDB connection failed: ${err.message}`);
-    process.exit(1);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    } else {
+      logger.warn('Running in development mode without active MongoDB. Please update MONGO_URI in .env');
+    }
   }
 };
 
