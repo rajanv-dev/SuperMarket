@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-import { useEffect } from 'react';
+import { Toaster, toast } from 'react-hot-toast';
+import { useEffect, useState } from 'react';
+import { AlertCircle, X } from 'lucide-react';
 
 import useAuthStore from './store/authStore';
 import { supabase } from './lib/supabase';
@@ -73,32 +74,61 @@ const GuestRoute = ({ children }) => {
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const { fetchMe, setSupabaseSession, isLoading } = useAuthStore();
+  const [oauthError, setOauthError] = useState(null);
 
   useEffect(() => {
-    // 1. Intercept OAuth redirect error parameters in URL hash or search query
-    const hash = window.location.hash.substring(1);
-    const search = window.location.search.substring(1);
-    const params = new URLSearchParams(hash || search);
+    // 1. Safely inspect URL for OAuth errors without disturbing ?code=
+    const rawHash = window.location.hash.startsWith('#')
+      ? window.location.hash.substring(1)
+      : window.location.hash;
+    const rawSearch = window.location.search.startsWith('?')
+      ? window.location.search.substring(1)
+      : window.location.search;
 
-    const error = params.get('error');
-    const errorDesc = params.get('error_description');
+    const hashParams = new URLSearchParams(rawHash);
+    const searchParams = new URLSearchParams(rawSearch);
+
+    const error = hashParams.get('error') || searchParams.get('error');
+    const errorDesc =
+      hashParams.get('error_description') || searchParams.get('error_description');
 
     if (error || errorDesc) {
-      const message = errorDesc
+      const rawMessage = errorDesc
         ? decodeURIComponent(errorDesc).replace(/\+/g, ' ')
         : 'Authentication failed';
 
-      if (message.includes('Unable to exchange external code')) {
-        toast.error(
-          'Google Sign-In failed: The Google Client Secret configured in Supabase Dashboard is invalid. Please update the Client Secret under Authentication -> Providers -> Google.',
-          { duration: 8000 }
-        );
-      } else {
-        toast.error(`Authentication notice: ${message}`, { duration: 6000 });
+      let userFriendlyMessage = rawMessage;
+      if (rawMessage.includes('Unable to exchange external code')) {
+        userFriendlyMessage =
+          'Google Sign-In failed: The Google Client Secret configured in Supabase Dashboard is invalid. Please verify Google Cloud OAuth credentials in Supabase Dashboard.';
       }
 
-      // Clean up the URL hash/search to prevent repeat error prompts
-      window.history.replaceState({}, document.title, window.location.pathname);
+      setOauthError(userFriendlyMessage);
+
+      try {
+        toast.error(userFriendlyMessage, { duration: 8000 });
+      } catch (e) {
+        console.warn('Toast display notification error:', e);
+      }
+
+      // Clean up ONLY error parameters from URL without removing ?code= if present
+      if (window.location.hash.includes('error=')) {
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname + window.location.search
+        );
+      } else if (searchParams.has('error')) {
+        searchParams.delete('error');
+        searchParams.delete('error_code');
+        searchParams.delete('error_description');
+        const remainingSearch = searchParams.toString();
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname + (remainingSearch ? `?${remainingSearch}` : '')
+        );
+      }
     }
 
     // 2. Refresh local user session
@@ -146,6 +176,35 @@ export default function App() {
           error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
         }}
       />
+
+      {/* OAuth Error Alert Banner */}
+      {oauthError && (
+        <div className="bg-rose-600 text-white px-4 py-3 shadow-md relative z-50">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <span>
+                <strong>Authentication Notice:</strong> {oauthError}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href="/login"
+                className="px-3.5 py-1.5 bg-white text-rose-700 font-bold rounded-xl text-xs hover:bg-rose-50 transition-colors shadow-xs"
+              >
+                Return to Login
+              </a>
+              <button
+                onClick={() => setOauthError(null)}
+                className="p-1 hover:bg-rose-700 rounded-lg text-white/80 hover:text-white"
+                title="Dismiss banner"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Routes>
         {/* ── Auth ─────────────────────────────────────────────────────────── */}
