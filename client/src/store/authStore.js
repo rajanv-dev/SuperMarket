@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { authService } from '../services';
+import { supabase } from '../lib/supabase';
+import { ROLES } from '../utils/constants';
 
 /**
  * Auth store — persisted to localStorage under key 'super-auth'.
- * Only the token and slim user object are persisted.
- * The full user profile is always fetched fresh from /api/auth/me.
+ * Supports both traditional JWT auth and Supabase OAuth sessions.
+ * Security: OAuth sessions always default to the 'customer' role.
  */
 const useAuthStore = create(
   persist(
@@ -44,18 +46,81 @@ const useAuthStore = create(
         }
       },
 
+      setSupabaseSession: (session) => {
+        if (!session?.user) {
+          const { user } = get();
+          if (user?.provider === 'google') {
+            set({ user: null, token: null, isLoading: false });
+          }
+          return;
+        }
+
+        const authUser = {
+          id: session.user.id,
+          name:
+            session.user.user_metadata?.full_name ||
+            session.user.user_metadata?.name ||
+            session.user.email?.split('@')[0] ||
+            'Google User',
+          email: session.user.email,
+          role: ROLES.CUSTOMER, // Security: Always default to customer for OAuth
+          avatar: session.user.user_metadata?.avatar_url || null,
+          provider: 'google',
+        };
+
+        set({
+          user: authUser,
+          token: session.access_token,
+          isLoading: false,
+          error: null,
+        });
+      },
+
       logout: async () => {
         try {
+          if (supabase) {
+            await supabase.auth.signOut();
+          }
+        } catch {
+          // Ignore signOut errors
+        }
+
+        try {
           await authService.logout();
+        } catch {
+          // Ignore API logout errors
         } finally {
           set({ user: null, token: null, error: null });
         }
       },
 
       fetchMe: async () => {
-        // Called on app load to refresh user data from server
-        const { token } = get();
-        if (!token) return;
+        // 1. Check if Supabase has an active session (e.g. from Google OAuth redirect)
+        if (supabase) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              get().setSupabaseSession(session);
+              return;
+            }
+          } catch {
+            // Ignore session check error, fall through
+          }
+        }
+
+        // 2. Fall back to backend token check
+        const { token, user } = get();
+        if (user?.provider === 'google') {
+          // If stored user was from google but no Supabase session exists, clear
+          set({ user: null, token: null, isLoading: false });
+          return;
+        }
+
+        if (!token) {
+          set({ isLoading: false });
+          return;
+        }
+
         set({ isLoading: true });
         try {
           const res = await authService.getMe();

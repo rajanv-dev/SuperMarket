@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import { useEffect } from 'react';
 
 import useAuthStore from './store/authStore';
+import { supabase } from './lib/supabase';
 import { ROLES } from './utils/constants';
 
 // ── Layouts ───────────────────────────────────────────────────────────────────
@@ -66,12 +67,27 @@ const GuestRoute = ({ children }) => {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
-  const { fetchMe, isLoading } = useAuthStore();
+  const { fetchMe, setSupabaseSession, isLoading } = useAuthStore();
 
   useEffect(() => {
     // Refresh user data on app mount (validates stored token against server)
     fetchMe();
-  }, [fetchMe]);
+
+    // Listen to Supabase auth events (e.g. OAuth redirect callback)
+    if (supabase) {
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setSupabaseSession(session);
+        }
+      });
+
+      return () => {
+        subscription?.unsubscribe();
+      };
+    }
+  }, [fetchMe, setSupabaseSession]);
 
   if (isLoading) {
     return (
