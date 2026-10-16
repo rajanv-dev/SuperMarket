@@ -38,6 +38,8 @@ import AdminOrders from './pages/admin/AdminOrders';
 import AdminInventory from './pages/admin/AdminInventory';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminSettings from './pages/admin/AdminSettings';
+import AdminAttendance from './pages/admin/AdminAttendance';
+import AdminLoginPage from './pages/admin/AdminLoginPage';
 
 // ── Cashier pages ─────────────────────────────────────────────────────────────
 import POSTerminal from './pages/cashier/POSTerminal';
@@ -218,11 +220,7 @@ export default function App() {
           <Route index element={<HomePage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
-          <Route path="cart" element={
-            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER, ROLES.ADMIN]}>
-              <CartPage />
-            </ProtectedRoute>
-          } />
+          <Route path="cart" element={<CartPage />} />
           <Route path="checkout" element={
             <ProtectedRoute allowedRoles={[ROLES.CUSTOMER, ROLES.ADMIN]}>
               <CheckoutPage />
@@ -245,6 +243,9 @@ export default function App() {
           } />
         </Route>
 
+        {/* ── Admin Login (Publicly accessible dedicated portal) ──────────── */}
+        <Route path="/admin/login" element={<AdminLoginPage />} />
+
         {/* ── Admin ────────────────────────────────────────────────────────── */}
         <Route path="admin" element={
           <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
@@ -260,6 +261,7 @@ export default function App() {
           <Route path="reports" element={<AdminAnalytics />} />
           <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="users" element={<AdminUsers />} />
+          <Route path="attendance" element={<AdminAttendance />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 

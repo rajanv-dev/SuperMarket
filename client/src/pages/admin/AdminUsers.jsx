@@ -3,7 +3,6 @@ import {
   Users,
   UserPlus,
   Shield,
-  ShieldCheck,
   CheckCircle,
   XCircle,
   Search,
@@ -11,17 +10,22 @@ import {
   X,
   Mail,
   Phone,
-  ShieldAlert,
+  AlertTriangle,
+  BadgeCheck,
 } from 'lucide-react';
 import { adminService } from '../../services/adminSupabaseService';
+import useAuthStore from '../../store/authStore';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
 import { ROLES } from '../../utils/constants';
 
 export default function AdminUsers() {
+  const { user: currentUser } = useAuthStore();
   const [users, setUsers] = useState([]);
+  const [staffProfiles, setStaffProfiles] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [filterMode, setFilterMode] = useState('staff_only'); // 'staff_only' | 'all'
   const [selectedRole, setSelectedRole] = useState('all');
 
   // Add staff modal
@@ -34,38 +38,60 @@ export default function AdminUsers() {
     phone: '',
   });
 
-  const loadUsers = async () => {
+  const loadData = async () => {
     try {
       setIsLoading(true);
-      const data = await adminService.getUsersAndStaff();
-      setUsers(data);
+      const [usersData, staffData] = await Promise.all([
+        adminService.getUsersAndStaff(),
+        adminService.getAttendanceStaffList().catch(() => []),
+      ]);
+
+      setUsers(usersData || []);
+
+      const profileMap = {};
+      (staffData || []).forEach((s) => {
+        if (s.user_profile_id) {
+          profileMap[s.user_profile_id] = s;
+        }
+      });
+      setStaffProfiles(profileMap);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load user accounts');
+      toast.error('Failed to load staff accounts');
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadUsers();
+    loadData();
   }, []);
 
-  const handleRoleChange = async (userId, newRole) => {
+  const handleRoleChange = async (targetUser, newRole) => {
+    if (targetUser.id === currentUser?.id && newRole !== ROLES.ADMIN) {
+      toast.error('You cannot demote your own administrator account');
+      return;
+    }
+
     try {
-      await adminService.updateUserRole(userId, newRole);
-      setUsers(users.map((u) => (u.id === userId ? { ...u, role: newRole } : u)));
-      toast.success(`Role updated to ${newRole}`);
+      await adminService.updateUserRole(targetUser.id, newRole);
+      setUsers(users.map((u) => (u.id === targetUser.id ? { ...u, role: newRole } : u)));
+      toast.success(`Role for ${targetUser.full_name || targetUser.email} updated to ${newRole}`);
     } catch (err) {
       toast.error('Failed to update role');
     }
   };
 
-  const handleToggleStatus = async (user) => {
+  const handleToggleStatus = async (targetUser) => {
+    if (targetUser.id === currentUser?.id) {
+      toast.error('You cannot deactivate your own active administrator account');
+      return;
+    }
+
     try {
-      const nextStatus = !user.is_active;
-      await adminService.toggleUserActive(user.id, nextStatus);
-      setUsers(users.map((u) => (u.id === user.id ? { ...u, is_active: nextStatus } : u)));
+      const nextStatus = !targetUser.is_active;
+      await adminService.toggleUserActive(targetUser.id, nextStatus);
+      setUsers(users.map((u) => (u.id === targetUser.id ? { ...u, is_active: nextStatus } : u)));
       toast.success(`User ${nextStatus ? 'activated' : 'deactivated'}`);
     } catch (err) {
       toast.error('Failed to change user status');
@@ -74,7 +100,7 @@ export default function AdminUsers() {
 
   const handleAddStaff = async (e) => {
     e.preventDefault();
-    if (!formData.fullName || !formData.email) {
+    if (!formData.fullName.trim() || !formData.email.trim()) {
       toast.error('Name and email are required');
       return;
     }
@@ -85,7 +111,7 @@ export default function AdminUsers() {
       toast.success('Staff member profile created successfully');
       setIsModalOpen(false);
       setFormData({ fullName: '', email: '', role: 'cashier', phone: '' });
-      loadUsers();
+      loadData();
     } catch (err) {
       toast.error(err.message || 'Failed to add staff member');
     } finally {
@@ -93,14 +119,19 @@ export default function AdminUsers() {
     }
   };
 
+  // Filter logic: clean separation of staff vs all accounts
   const filteredUsers = users.filter((u) => {
     const term = search.toLowerCase();
     const matchSearch =
       !term ||
       (u.full_name && u.full_name.toLowerCase().includes(term)) ||
       (u.email && u.email.toLowerCase().includes(term));
+
+    const isStaff = u.role === 'admin' || u.role === 'manager' || u.role === 'cashier';
+    const matchMode = filterMode === 'all' || isStaff;
     const matchRole = selectedRole === 'all' || u.role === selectedRole;
-    return matchSearch && matchRole;
+
+    return matchSearch && matchMode && matchRole;
   });
 
   return (
@@ -109,16 +140,16 @@ export default function AdminUsers() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-display font-extrabold text-slate-900 tracking-tight">
-            Staff & User Management
+            Staff & Roles
           </h1>
           <p className="text-sm text-slate-500">
-            Configure role-based permissions (Admin, Manager, Cashier, Customer) and staff access
+            Manage supermarket staff profiles, permission levels, and access credentials
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
-            onClick={loadUsers}
+            onClick={loadData}
             className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-xs transition-all"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -136,32 +167,60 @@ export default function AdminUsers() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center gap-3">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+        {/* Search Field */}
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search users by name or email..."
+            placeholder="Search by staff name or email..."
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
 
-        <select
-          value={selectedRole}
-          onChange={(e) => setSelectedRole(e.target.value)}
-          className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer w-full md:w-auto"
-        >
-          <option value="all">All Roles</option>
-          <option value="admin">Administrators</option>
-          <option value="manager">Managers</option>
-          <option value="cashier">Cashiers</option>
-          <option value="customer">Customers</option>
-        </select>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          {/* Staff Filter Toggle */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+            <button
+              onClick={() => setFilterMode('staff_only')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                filterMode === 'staff_only'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Staff Only
+            </button>
+            <button
+              onClick={() => setFilterMode('all')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                filterMode === 'all'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              All Accounts
+            </button>
+          </div>
+
+          {/* Role Filter */}
+          <select
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+          >
+            <option value="all">All Roles</option>
+            <option value="admin">Administrators</option>
+            <option value="manager">Inventory Managers</option>
+            <option value="cashier">Cashiers</option>
+            {filterMode === 'all' && <option value="customer">Customers</option>}
+          </select>
+        </div>
       </div>
 
-      {/* Users Table */}
+      {/* Staff Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         {isLoading ? (
           <div className="py-20 flex justify-center">
@@ -172,7 +231,8 @@ export default function AdminUsers() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50/70 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200/60">
                 <tr>
-                  <th className="py-3 px-4">User</th>
+                  <th className="py-3 px-4">Staff Member</th>
+                  <th className="py-3 px-4">Employee ID</th>
                   <th className="py-3 px-4">Contact</th>
                   <th className="py-3 px-4">Role Permission</th>
                   <th className="py-3 px-4 text-center">Account Status</th>
@@ -181,30 +241,61 @@ export default function AdminUsers() {
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {filteredUsers.map((u) => {
-                  const isAdmin = u.role === 'admin';
+                  const staff = staffProfiles[u.id];
+                  const isCurrentAdmin = u.id === currentUser?.id;
+
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
+                      {/* Name & Email */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-slate-600">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500/20 to-emerald-500/20 text-primary-700 flex items-center justify-center font-bold text-sm shrink-0">
                             {u.full_name?.charAt(0) || u.email?.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-bold text-slate-900 text-sm leading-tight">
-                              {u.full_name || 'Staff Member'}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-bold text-slate-900 text-sm leading-tight">
+                                {u.full_name || 'Staff Member'}
+                              </p>
+                              {isCurrentAdmin && (
+                                <span className="text-[10px] bg-primary-50 text-primary-700 font-bold px-1.5 py-0.5 rounded border border-primary-200">
+                                  You
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[11px] text-slate-400 font-mono">{u.email}</p>
                           </div>
                         </div>
                       </td>
+
+                      {/* Employee ID */}
+                      <td className="py-3.5 px-4">
+                        {staff?.employee_id ? (
+                          <span className="inline-flex items-center gap-1 font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md text-[11px]">
+                            <BadgeCheck className="w-3 h-3 text-primary-600" />
+                            {staff.employee_id}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
+
+                      {/* Contact Phone */}
                       <td className="py-3.5 px-4 font-mono text-slate-600">
                         {u.phone || '—'}
                       </td>
+
+                      {/* Role Selector */}
                       <td className="py-3.5 px-4">
                         <select
                           value={u.role || 'customer'}
-                          onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                          className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 outline-none cursor-pointer hover:border-slate-300"
+                          disabled={isCurrentAdmin}
+                          onChange={(e) => handleRoleChange(u, e.target.value)}
+                          className={`px-2.5 py-1 text-xs font-semibold rounded-lg border bg-white outline-none cursor-pointer ${
+                            isCurrentAdmin
+                              ? 'border-slate-200 text-slate-400 cursor-not-allowed bg-slate-50'
+                              : 'border-slate-200 text-slate-800 hover:border-slate-300'
+                          }`}
                         >
                           <option value="admin">Admin</option>
                           <option value="manager">Manager</option>
@@ -212,6 +303,8 @@ export default function AdminUsers() {
                           <option value="customer">Customer</option>
                         </select>
                       </td>
+
+                      {/* Status */}
                       <td className="py-3.5 px-4 text-center">
                         <span
                           className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-semibold text-[11px] ${
@@ -233,11 +326,17 @@ export default function AdminUsers() {
                           )}
                         </span>
                       </td>
+
+                      {/* Action Button */}
                       <td className="py-3.5 px-4 text-right">
                         <button
                           onClick={() => handleToggleStatus(u)}
+                          disabled={isCurrentAdmin}
+                          title={isCurrentAdmin ? 'You cannot deactivate your own account' : ''}
                           className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all ${
-                            u.is_active !== false
+                            isCurrentAdmin
+                              ? 'opacity-40 cursor-not-allowed text-slate-400 border-slate-200'
+                              : u.is_active !== false
                               ? 'text-rose-600 border-rose-200 hover:bg-rose-50'
                               : 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
                           }`}
@@ -254,7 +353,7 @@ export default function AdminUsers() {
         ) : (
           <div className="py-16 text-center text-slate-400">
             <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
-            <p className="text-sm font-semibold text-slate-700">No users found</p>
+            <p className="text-sm font-semibold text-slate-700">No staff accounts found</p>
           </div>
         )}
       </div>

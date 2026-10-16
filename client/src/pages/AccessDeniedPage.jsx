@@ -31,10 +31,17 @@ export default function AccessDeniedPage() {
           </Link>
 
           <Link
+            to="/admin/login"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition-all shadow-sm"
+          >
+            <LogIn className="w-4 h-4" /> Admin Portal Sign In
+          </Link>
+
+          <Link
             to="/login"
             className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-sm font-semibold transition-all"
           >
-            <LogIn className="w-4 h-4" /> Sign In with Different Account
+            Sign In with Different Account
           </Link>
         </div>
       </div>

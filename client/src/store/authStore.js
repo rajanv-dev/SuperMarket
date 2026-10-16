@@ -66,15 +66,96 @@ const useAuthStore = create(
       login: async (data) => {
         set({ isLoading: true, error: null });
         try {
+          // 1. Try Supabase Auth password authentication
+          if (supabase) {
+            const { data: sbData, error: sbError } = await supabase.auth.signInWithPassword({
+              email: data.email.trim(),
+              password: data.password,
+            });
+
+            if (!sbError && sbData?.session) {
+              await get().setSupabaseSession(sbData.session);
+              const currentUser = get().user;
+              return { success: true, role: currentUser?.role || ROLES.CUSTOMER };
+            }
+
+            if (sbError && sbError.message === 'Invalid login credentials') {
+              throw new Error('Invalid email or password');
+            }
+          }
+
+          // 2. Fall back to backend auth if Supabase wasn't matched
           const res = await authService.login(data);
           const { user, token } = res.data.data;
           set({ user, token, isLoading: false });
           return { success: true, role: user.role };
         } catch (err) {
-          const error = err.userMessage || 'Login failed';
+          const error = err.message || err.userMessage || 'Login failed';
           set({ isLoading: false, error });
           return { success: false, error };
         }
+      },
+
+      adminLogin: async ({ email, password }) => {
+        set({ isLoading: true, error: null });
+        try {
+          if (!supabase) throw new Error('Authentication service is not initialized');
+
+          const { data: sbData, error: sbError } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
+
+          if (sbError) {
+            throw new Error(
+              sbError.message === 'Invalid login credentials'
+                ? 'Invalid administrator email or password'
+                : sbError.message
+            );
+          }
+
+          if (!sbData?.session?.user) {
+            throw new Error('Authentication session could not be established');
+          }
+
+          // Verify administrator role from database
+          const { data: profile, error: profErr } = await supabase
+            .from('user_profiles')
+            .select('role, is_active, full_name')
+            .or(`auth_id.eq.${sbData.session.user.id},email.eq.${sbData.session.user.email}`)
+            .maybeSingle();
+
+          if (profErr || !profile) {
+            await supabase.auth.signOut();
+            throw new Error('No profile associated with this account. Contact system administrator.');
+          }
+
+          if (!profile.is_active) {
+            await supabase.auth.signOut();
+            throw new Error('Your administrator account has been deactivated.');
+          }
+
+          if (profile.role !== ROLES.ADMIN) {
+            await supabase.auth.signOut();
+            throw new Error('Access denied: Your account does not have administrator privileges.');
+          }
+
+          await get().setSupabaseSession(sbData.session);
+          return { success: true, role: profile.role };
+        } catch (err) {
+          const error = err.message || 'Admin login failed';
+          set({ isLoading: false, error });
+          return { success: false, error };
+        }
+      },
+
+      resetPassword: async (email) => {
+        if (!supabase) throw new Error('Authentication service is not initialized');
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: `${window.location.origin}/admin/login`,
+        });
+        if (error) throw error;
+        return true;
       },
 
       /**

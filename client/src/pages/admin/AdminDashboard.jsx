@@ -13,6 +13,9 @@ import {
   Warehouse,
   Monitor,
   RefreshCw,
+  Users,
+  QrCode,
+  ClipboardCheck,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -31,18 +34,32 @@ import toast from 'react-hot-toast';
 
 export default function AdminDashboard() {
   const [metrics, setMetrics] = useState(null);
+  const [attendanceSummary, setAttendanceSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const loadData = async (showToast = false) => {
     try {
       if (showToast) setIsRefreshing(true);
-      const data = await adminService.getDashboardMetrics();
-      setMetrics(data);
+      const [dashData, attSummary] = await Promise.allSettled([
+        adminService.getDashboardMetrics(),
+        adminService.getAttendanceSummary(),
+      ]);
+
+      if (dashData.status === 'fulfilled') {
+        setMetrics(dashData.value);
+      } else {
+        console.error('Error loading dashboard metrics:', dashData.reason);
+      }
+
+      if (attSummary.status === 'fulfilled') {
+        setAttendanceSummary(attSummary.value);
+      }
+
       if (showToast) toast.success('Dashboard metrics refreshed');
     } catch (err) {
-      console.error('Error loading dashboard metrics:', err);
-      toast.error('Failed to load dashboard metrics from Supabase');
+      console.error('Error loading dashboard data:', err);
+      toast.error('Failed to load dashboard metrics');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -191,6 +208,128 @@ export default function AdminDashboard() {
             {metrics?.outOfStockCount || 0}
           </p>
           <p className="text-[11px] font-medium text-rose-600 mt-1">Immediate restock needed</p>
+        </div>
+      </div>
+
+      {/* Staff Attendance & Shift Overview Section */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-6 text-white shadow-md border border-slate-700/50">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+              <ClipboardCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-white tracking-tight">
+                  Staff Attendance & Shifts
+                </h2>
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Live
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Real-time punch records, open shift monitoring, and automated ID card scans
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/admin/attendance?tab=scanner"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-sm"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>ID Card Scanner</span>
+            </Link>
+            <Link
+              to="/admin/attendance?tab=records"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10 transition-all"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Staff Attendance</span>
+            </Link>
+            <Link
+              to="/admin/attendance?tab=records"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10 transition-all"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Attendance History</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* 4 Attendance KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Card 1: Present Today */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all">
+            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1">
+              Staff Present Today
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-white">{attendanceSummary?.presentCount || 0}</span>
+              <span className="text-xs text-slate-400">/ {attendanceSummary?.totalStaff || 0} staff</span>
+            </div>
+            <div className="mt-2 text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              {attendanceSummary?.totalStaff
+                ? Math.round(((attendanceSummary?.presentCount || 0) / attendanceSummary.totalStaff) * 100)
+                : 0}
+              % turnout today
+            </div>
+          </div>
+
+          {/* Card 2: Currently Working */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all">
+            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1">
+              Staff Currently Working
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-emerald-300">
+                {attendanceSummary?.currentlyWorkingCount || 0}
+              </span>
+              <span className="text-xs text-slate-400">on duty</span>
+            </div>
+            <div className="mt-2 text-[11px] text-slate-300 font-medium flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Open shift sessions
+            </div>
+          </div>
+
+          {/* Card 3: Late Arrivals */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all">
+            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1">
+              Late Arrivals
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span
+                className={`text-2xl font-black ${
+                  (attendanceSummary?.lateCount || 0) > 0 ? 'text-amber-400' : 'text-slate-300'
+                }`}
+              >
+                {attendanceSummary?.lateCount || 0}
+              </span>
+              <span className="text-xs text-slate-400">late</span>
+            </div>
+            <div className="mt-2 text-[11px] text-amber-300/80 font-medium">
+              Past 09:15 AM store cutoff
+            </div>
+          </div>
+
+          {/* Card 4: Attendance Records Today */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all">
+            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1">
+              Attendance Records Today
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-white">
+                {attendanceSummary?.totalRecordsToday || 0}
+              </span>
+              <span className="text-xs text-slate-400">records</span>
+            </div>
+            <div className="mt-2 text-[11px] text-slate-400 font-medium">
+              {attendanceSummary?.absentCount || 0} unrecorded / absent
+            </div>
+          </div>
         </div>
       </div>
 

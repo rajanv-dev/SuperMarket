@@ -303,6 +303,14 @@ export default function CustomerLayout() {
           <div className="md:hidden border-t border-slate-100 bg-white px-4 py-3 space-y-2 animate-slide-up text-xs font-semibold text-slate-700">
             <Link to="/" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 hover:text-primary-600">Home</Link>
             <Link to="/products" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 hover:text-primary-600">All Products</Link>
+            <Link to="/cart" onClick={() => setMobileMenuOpen(false)} className="flex items-center justify-between py-1.5 hover:text-primary-600">
+              <span>Shopping Cart</span>
+              {totalItems > 0 && (
+                <span className="bg-primary-600 text-white rounded-full px-2 py-0.5 text-[10px] font-bold">
+                  {totalItems}
+                </span>
+              )}
+            </Link>
             <Link to="/products?category=Dairy" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 hover:text-primary-600">Dairy</Link>
             <Link to="/products?category=Groceries" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 hover:text-primary-600">Groceries</Link>
             <Link to="/products?category=Bakery" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 hover:text-primary-600">Bakery</Link>

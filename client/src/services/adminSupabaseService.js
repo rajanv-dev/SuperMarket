@@ -1144,5 +1144,97 @@ export const adminService = {
 
     return enriched;
   },
+
+  // ── 10. Staff Attendance & ID Card Scanner ────────────────────────────────
+  async getAttendanceSummary(date) {
+    try {
+      const res = await api.get('/admin/attendance/summary', { params: { date } });
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) throw err;
+      console.warn('Backend /admin/attendance/summary failed:', err.message);
+    }
+    return {
+      totalStaff: 0,
+      presentToday: 0,
+      currentlyWorking: 0,
+      lateArrivals: 0,
+      absentCount: 0,
+      totalRecords: 0,
+      totalHoursWorked: 0,
+    };
+  },
+
+  async getAttendanceRecords(params = {}) {
+    try {
+      const res = await api.get('/admin/attendance', { params });
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) throw err;
+      console.warn('Backend /admin/attendance failed:', err.message);
+    }
+    return [];
+  },
+
+  async getAttendanceStaffList(params = {}) {
+    try {
+      const res = await api.get('/admin/attendance/staff', { params });
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) throw err;
+      console.warn('Backend /admin/attendance/staff failed:', err.message);
+    }
+    return [];
+  },
+
+  async scanStaffIdCard({ identifier, method = 'card_scan' }) {
+    const res = await api.post('/admin/attendance/scan', { identifier, method });
+    return res.data;
+  },
+
+  async manualClockIn(data) {
+    const res = await api.post('/admin/attendance/clock-in', data);
+    return res.data;
+  },
+
+  async manualClockOut(data) {
+    const res = await api.post('/admin/attendance/clock-out', data);
+    return res.data;
+  },
+
+  async getStaffAttendanceHistory(staffProfileId, limit = 30) {
+    try {
+      const res = await api.get(`/admin/attendance/history/${staffProfileId}`, { params: { limit } });
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) throw err;
+      console.warn('Backend history failed:', err.message);
+    }
+    return [];
+  },
+
+  async assignStaffCard(data) {
+    const res = await api.post('/admin/attendance/cards/assign', data);
+    return res.data;
+  },
+
+  async revokeStaffCard(data) {
+    const res = await api.post('/admin/attendance/cards/revoke', data);
+    return res.data;
+  },
+
+  async correctAttendance(id, data) {
+    const res = await api.patch(`/admin/attendance/${id}`, data);
+    return res.data;
+  },
 };
+
 

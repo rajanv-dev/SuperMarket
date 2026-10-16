@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Layers,
   UserCheck,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import useAuthStore from '../store/authStore';
@@ -30,6 +31,7 @@ const navItems = [
   { path: '/admin/inventory', label: 'Inventory & Batches', icon: Warehouse },
   { path: '/admin/categories', label: 'Categories', icon: Layers },
   { path: '/admin/orders', label: 'Orders & Sales', icon: ShoppingBag },
+  { path: '/admin/attendance', label: 'Staff Attendance', icon: ClipboardCheck },
   { path: '/admin/customers', label: 'Customers', icon: UserCheck },
   { path: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { path: '/admin/users', label: 'Staff & Roles', icon: Users },
@@ -37,7 +39,7 @@ const navItems = [
 ];
 
 export default function AdminLayout() {
-  const { user, logout, setDevRole } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -192,25 +194,6 @@ export default function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Quick Dev Role Switcher */}
-            <div className="hidden md:flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs">
-              <ShieldCheck className="w-3.5 h-3.5 text-primary-600" />
-              <span className="text-slate-500 font-medium">Role:</span>
-              <select
-                value={user?.role || ROLES.ADMIN}
-                onChange={(e) => {
-                  setDevRole(e.target.value);
-                  toast.success(`Role switched to ${e.target.value}`);
-                }}
-                className="bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
-              >
-                <option value={ROLES.ADMIN}>Admin</option>
-                <option value={ROLES.INVENTORY_MANAGER}>Inventory Manager</option>
-                <option value={ROLES.CASHIER}>Cashier</option>
-                <option value={ROLES.CUSTOMER}>Customer</option>
-              </select>
-            </div>
-
             {/* Notifications */}
             <div className="relative">
               <button

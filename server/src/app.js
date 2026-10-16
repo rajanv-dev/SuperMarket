@@ -18,6 +18,9 @@ const logger = require('./utils/logger');
 const authRoutes = require('./modules/auth/auth.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 const productRoutes = require('./modules/products/products.routes');
+const attendanceRoutes = require('./modules/attendance/attendance.routes');
+const cartRoutes = require('./modules/cart/cart.routes');
+const orderRoutes = require('./modules/orders/orders.routes');
 
 // ── App setup ─────────────────────────────────────────────────────────────────
 const app = express();
@@ -131,10 +134,10 @@ app.get('/api/health/db', async (req, res) => {
 // ── API routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/attendance', attendanceRoutes);
 app.use('/api/products', productRoutes);
-// app.use('/api/categories',  categoryRoutes);
-// app.use('/api/cart',        cartRoutes);
-// app.use('/api/orders',      orderRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
 // app.use('/api/payments',    paymentRoutes);
 // app.use('/api/inventory',   inventoryRoutes);
 // app.use('/api/pos',         posRoutes);

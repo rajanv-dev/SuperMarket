@@ -39,12 +39,23 @@ api.interceptors.response.use(
     const message =
       error.response?.data?.message || error.message || 'An unexpected error occurred';
 
-    // If the server says 401, clear stored auth state and redirect to login
+    // If the server says 401 on an explicitly authenticated action, clear stored token
     if (error.response?.status === 401) {
-      localStorage.removeItem('super-auth');
-      // Avoid redirect loops on the login page itself
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+      const isCartRequest = error.config?.url?.includes('/cart');
+      const isPublicProduct = error.config?.url?.includes('/products');
+
+      // Do NOT kick guest shoppers out when browsing products or managing local cart
+      if (!isCartRequest && !isPublicProduct) {
+        localStorage.removeItem('super-auth');
+        const pathname = window.location.pathname;
+        if (
+          !pathname.startsWith('/login') &&
+          !pathname.startsWith('/register') &&
+          !pathname.startsWith('/cart') &&
+          (pathname.startsWith('/checkout') || pathname.startsWith('/admin') || pathname.startsWith('/orders') || pathname.startsWith('/profile'))
+        ) {
+          window.location.href = `/login?redirect=${encodeURIComponent(pathname)}`;
+        }
       }
     }
 
