@@ -75,10 +75,36 @@ export default function App() {
   const { fetchMe, setSupabaseSession, isLoading } = useAuthStore();
 
   useEffect(() => {
-    // Refresh user data on app mount (validates stored token against server)
+    // 1. Intercept OAuth redirect error parameters in URL hash or search query
+    const hash = window.location.hash.substring(1);
+    const search = window.location.search.substring(1);
+    const params = new URLSearchParams(hash || search);
+
+    const error = params.get('error');
+    const errorDesc = params.get('error_description');
+
+    if (error || errorDesc) {
+      const message = errorDesc
+        ? decodeURIComponent(errorDesc).replace(/\+/g, ' ')
+        : 'Authentication failed';
+
+      if (message.includes('Unable to exchange external code')) {
+        toast.error(
+          'Google Sign-In failed: The Google Client Secret configured in Supabase Dashboard is invalid. Please update the Client Secret under Authentication -> Providers -> Google.',
+          { duration: 8000 }
+        );
+      } else {
+        toast.error(`Authentication notice: ${message}`, { duration: 6000 });
+      }
+
+      // Clean up the URL hash/search to prevent repeat error prompts
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // 2. Refresh local user session
     fetchMe();
 
-    // Listen to Supabase auth events (e.g. OAuth redirect callback)
+    // 3. Listen to Supabase auth events (e.g. OAuth redirect callback)
     if (supabase) {
       const {
         data: { subscription },
