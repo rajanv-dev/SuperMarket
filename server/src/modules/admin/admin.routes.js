@@ -80,6 +80,15 @@ router.get('/metrics', async (req, res) => {
       });
     }
 
+    // Category valuation distribution
+    const categoryMap = {};
+    activeProducts.forEach((p) => {
+      const cat = p.category || 'General';
+      if (!categoryMap[cat]) categoryMap[cat] = { name: cat, count: 0, value: 0 };
+      categoryMap[cat].count += 1;
+      categoryMap[cat].value = Math.round((categoryMap[cat].value + (Number(p.price) || 0) * (Number(p.stock_quantity) || 0)) * 100) / 100;
+    });
+
     return sendSuccess(res, {
       status: 200,
       data: {
@@ -93,6 +102,7 @@ router.get('/metrics', async (req, res) => {
         recentTransactions: allOrders.slice(0, 6),
         expiringBatches: expiringBatches || [],
         salesTrend: last7Days,
+        categoryDistribution: Object.values(categoryMap),
       },
     });
   } catch (err) {
@@ -524,15 +534,13 @@ router.get('/inventory', async (req, res) => {
 // POST /api/admin/inventory/batches (Receive new stock batch)
 router.post('/inventory/batches', async (req, res) => {
   try {
-    const {
-      product_id,
-      batch_number,
-      barcode,
-      quantity_received,
-      manufacturing_date,
-      expiry_date,
-      cost_price,
-    } = req.body;
+    const product_id = req.body.product_id || req.body.productId;
+    const batch_number = req.body.batch_number || req.body.batchNumber;
+    const barcode = req.body.barcode;
+    const quantity_received = req.body.quantity_received !== undefined ? req.body.quantity_received : req.body.quantityReceived;
+    const manufacturing_date = req.body.manufacturing_date || req.body.manufacturingDate;
+    const expiry_date = req.body.expiry_date || req.body.expiryDate;
+    const cost_price = req.body.cost_price !== undefined ? req.body.cost_price : req.body.costPrice;
 
     if (!product_id) {
       return sendError(res, { status: 400, message: 'Product ID is required' });
@@ -646,7 +654,10 @@ router.put('/inventory/batches/:id', async (req, res) => {
 // POST /api/admin/inventory/adjust (Manual auditable stock adjustment)
 router.post('/inventory/adjust', async (req, res) => {
   try {
-    const { product_id, batch_id, quantity_delta, reason } = req.body;
+    const product_id = req.body.product_id || req.body.productId;
+    const batch_id = req.body.batch_id || req.body.batchId;
+    const quantity_delta = req.body.quantity_delta !== undefined ? req.body.quantity_delta : req.body.quantityDelta;
+    const reason = req.body.reason;
     const delta = Number(quantity_delta);
 
     if (!product_id) return sendError(res, { status: 400, message: 'Product ID required' });

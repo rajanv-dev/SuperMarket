@@ -219,27 +219,27 @@ export default function App() {
           <Route path="products" element={<ProductsPage />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
           <Route path="cart" element={
-            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
+            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER, ROLES.ADMIN]}>
               <CartPage />
             </ProtectedRoute>
           } />
           <Route path="checkout" element={
-            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
+            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER, ROLES.ADMIN]}>
               <CheckoutPage />
             </ProtectedRoute>
           } />
           <Route path="orders" element={
-            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
+            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER, ROLES.ADMIN]}>
               <OrdersPage />
             </ProtectedRoute>
           } />
           <Route path="orders/:id" element={
-            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
+            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER, ROLES.ADMIN]}>
               <OrderDetailPage />
             </ProtectedRoute>
           } />
           <Route path="profile" element={
-            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
+            <ProtectedRoute allowedRoles={[ROLES.CUSTOMER, ROLES.ADMIN]}>
               <ProfilePage />
             </ProtectedRoute>
           } />

@@ -1,15 +1,25 @@
+import api from './api';
 import { supabase } from '../lib/supabase';
 
 /**
  * Supermarket Admin & Management Service
- * Communicates directly with Supabase PostgreSQL tables:
- * - products, product_batches, categories
- * - orders, order_items, stock_movements
- * - user_profiles, store_settings
+ * Communicates with Express backend (/api/admin) with Supabase PostgreSQL fallback
  */
 export const adminService = {
   // ── 1. Dashboard Metrics ──────────────────────────────────────────────────
   async getDashboardMetrics() {
+    try {
+      const res = await api.get('/admin/metrics');
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/metrics unavailable, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase client not initialized');
 
     // Products metrics
@@ -110,6 +120,20 @@ export const adminService = {
 
   // ── 2. Product Management ─────────────────────────────────────────────────
   async getProducts({ search = '', category = '', status = 'all' } = {}) {
+    try {
+      const res = await api.get('/admin/products', {
+        params: { search, category, status, limit: 100 },
+      });
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/products unavailable, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     let query = supabase.from('products').select('*').order('name', { ascending: true });
 
@@ -132,6 +156,18 @@ export const adminService = {
   },
 
   async addProduct(product) {
+    try {
+      const res = await api.post('/admin/products', product);
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/products POST failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data, error } = await supabase
       .from('products')
@@ -184,6 +220,18 @@ export const adminService = {
   },
 
   async updateProduct(id, updates) {
+    try {
+      const res = await api.put(`/admin/products/${id}`, updates);
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/products PUT failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data, error } = await supabase
       .from('products')
@@ -203,6 +251,18 @@ export const adminService = {
   },
 
   async deleteProduct(id) {
+    try {
+      const res = await api.delete(`/admin/products/${id}`);
+      if (res.data?.success) {
+        return true;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/products DELETE failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (error) throw error;
@@ -211,6 +271,18 @@ export const adminService = {
 
   // ── 3. Inventory & FEFO Batches ───────────────────────────────────────────
   async getInventoryBatches() {
+    try {
+      const res = await api.get('/admin/inventory');
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/inventory failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data, error } = await supabase
       .from('product_batches')
@@ -220,15 +292,29 @@ export const adminService = {
     return data || [];
   },
 
-  async receiveStockBatch({
-    productId,
-    batchNumber,
-    barcode,
-    quantityReceived,
-    manufacturingDate,
-    expiryDate,
-    costPrice,
-  }) {
+  async receiveStockBatch(batchData) {
+    try {
+      const res = await api.post('/admin/inventory/batches', batchData);
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/inventory/batches failed, using direct Supabase client:', err.message);
+    }
+
+    const {
+      productId,
+      batchNumber,
+      barcode,
+      quantityReceived,
+      manufacturingDate,
+      expiryDate,
+      costPrice,
+    } = batchData;
+
     if (!supabase) throw new Error('Supabase not ready');
 
     const qty = Number(quantityReceived);
@@ -292,7 +378,20 @@ export const adminService = {
     return batch;
   },
 
-  async adjustStock({ productId, batchId, quantityDelta, reason, performedBy }) {
+  async adjustStock(adjustData) {
+    try {
+      const res = await api.post('/admin/inventory/adjust', adjustData);
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/inventory/adjust failed, using direct Supabase client:', err.message);
+    }
+
+    const { productId, batchId, quantityDelta, reason, performedBy } = adjustData;
     if (!supabase) throw new Error('Supabase not ready');
 
     const delta = Number(quantityDelta);
@@ -365,6 +464,18 @@ export const adminService = {
   },
 
   async getStockMovements(limit = 40) {
+    try {
+      const res = await api.get('/admin/inventory/movements', { params: { limit } });
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/inventory/movements failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data, error } = await supabase
       .from('stock_movements')
@@ -377,6 +488,20 @@ export const adminService = {
 
   // ── 4. Orders & Sales (with atomic FEFO deduction) ────────────────────────
   async getOrders({ search = '', type = 'all', status = 'all' } = {}) {
+    try {
+      const res = await api.get('/admin/orders', {
+        params: { search, type, status, limit: 100 },
+      });
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/orders failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
 
@@ -397,6 +522,18 @@ export const adminService = {
   },
 
   async getOrderDetails(orderId) {
+    try {
+      const res = await api.get(`/admin/orders/${orderId}`);
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/orders/:id failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data: order, error: ordErr } = await supabase
       .from('orders')
@@ -434,6 +571,18 @@ export const adminService = {
   },
 
   async refundOrder(orderId, reason = 'Customer refund') {
+    try {
+      const res = await api.post(`/admin/orders/${orderId}/refund`, { reason });
+      if (res.data?.success) {
+        return true;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/orders/:id/refund failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
 
     // 1. Fetch order and items
@@ -630,6 +779,18 @@ export const adminService = {
 
   // ── 6. Users & Staff Management ───────────────────────────────────────────
   async getUsersAndStaff() {
+    try {
+      const res = await api.get('/admin/users');
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/users failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data, error } = await supabase
       .from('user_profiles')
@@ -640,6 +801,18 @@ export const adminService = {
   },
 
   async updateUserRole(userId, newRole) {
+    try {
+      const res = await api.patch(`/admin/users/${userId}/role`, { role: newRole });
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/users/:id/role failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data, error } = await supabase
       .from('user_profiles')
@@ -684,6 +857,18 @@ export const adminService = {
 
   // ── 7. Settings ───────────────────────────────────────────────────────────
   async getStoreSettings() {
+    try {
+      const res = await api.get('/admin/settings');
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/settings failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data, error } = await supabase
       .from('store_settings')
@@ -706,6 +891,18 @@ export const adminService = {
   },
 
   async updateStoreSettings(settings) {
+    try {
+      const res = await api.put('/admin/settings', settings);
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/settings PUT failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data, error } = await supabase
       .from('store_settings')
@@ -722,6 +919,18 @@ export const adminService = {
 
   // ── 8. Categories ─────────────────────────────────────────────────────────
   async getCategories({ search = '' } = {}) {
+    try {
+      const res = await api.get('/admin/categories', { params: { search } });
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/categories failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     let query = supabase.from('categories').select('*').order('name', { ascending: true });
     if (search.trim()) {
@@ -745,6 +954,18 @@ export const adminService = {
   },
 
   async addCategory({ name, description }) {
+    try {
+      const res = await api.post('/admin/categories', { name, description });
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/categories POST failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     if (!name?.trim()) throw new Error('Category name is required');
 
@@ -774,6 +995,18 @@ export const adminService = {
   },
 
   async updateCategory(id, { name, description, is_active }) {
+    try {
+      const res = await api.put(`/admin/categories/${id}`, { name, description, is_active });
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/categories PUT failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data: existing, error: fetchErr } = await supabase
       .from('categories')
@@ -821,6 +1054,18 @@ export const adminService = {
   },
 
   async deleteCategory(id, force = false) {
+    try {
+      const res = await api.delete(`/admin/categories/${id}`, { params: { force } });
+      if (res.data?.success) {
+        return true;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/categories DELETE failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data: category } = await supabase.from('categories').select('*').eq('id', id).single();
     if (!category) throw new Error('Category not found');
@@ -837,6 +1082,18 @@ export const adminService = {
 
   // ── 9. Customers & Orders Aggregation ──────────────────────────────────────
   async getCustomers({ search = '' } = {}) {
+    try {
+      const res = await api.get('/admin/customers', { params: { search } });
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw err;
+      }
+      console.warn('Backend /admin/customers failed, using direct Supabase client:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
 
     const { data: profiles, error } = await supabase

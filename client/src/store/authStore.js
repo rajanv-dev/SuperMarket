@@ -81,7 +81,7 @@ const useAuthStore = create(
        * Sets user session from Supabase OAuth or Auth.
        * Updates state immediately to avoid any navbar flashing.
        */
-      setSupabaseSession: (session) => {
+      setSupabaseSession: async (session) => {
         if (!session?.user) {
           const { user } = get();
           if (user?.provider === 'google' || user?.provider === 'supabase') {
@@ -90,45 +90,53 @@ const useAuthStore = create(
           return;
         }
 
-        const authUser = extractUserProfile(session.user);
+        const existingUser = get().user;
+        const initialRole =
+          existingUser?.id === session.user.id && existingUser?.role
+            ? existingUser.role
+            : ROLES.CUSTOMER;
 
-        // 1. Immediately set user and token synchronously
+        let authUser = {
+          ...extractUserProfile(session.user),
+          role: initialRole,
+        };
+
+        // Query verified database role from public.user_profiles before releasing isLoading
+        if (supabase) {
+          try {
+            const { data: profile } = await supabase
+              .from('user_profiles')
+              .select('role, is_active, full_name')
+              .or(`auth_id.eq.${session.user.id},email.eq.${session.user.email}`)
+              .maybeSingle();
+
+            if (profile) {
+              if (!profile.is_active) {
+                set({
+                  user: null,
+                  token: null,
+                  isLoading: false,
+                  error: 'Account has been deactivated by administrator',
+                });
+                return;
+              }
+              authUser = {
+                ...authUser,
+                role: profile.role || authUser.role,
+                name: profile.full_name || authUser.name,
+              };
+            }
+          } catch (err) {
+            console.warn('Profile lookup error:', err);
+          }
+        }
+
         set({
           user: authUser,
           token: session.access_token,
           isLoading: false,
           error: null,
         });
-
-        // 2. Background check if this user has an assigned staff/admin role in public.user_profiles
-        if (supabase) {
-          supabase
-            .from('user_profiles')
-            .select('role, is_active, full_name')
-            .or(`auth_id.eq.${session.user.id},email.eq.${session.user.email}`)
-            .maybeSingle()
-            .then(({ data: profile }) => {
-              if (profile) {
-                if (!profile.is_active) {
-                  set({ user: null, token: null, isLoading: false, error: 'Account is deactivated' });
-                  return;
-                }
-                const currentUser = get().user;
-                if (currentUser && profile.role && profile.role !== currentUser.role) {
-                  set({
-                    user: {
-                      ...currentUser,
-                      role: profile.role,
-                      name: profile.full_name || currentUser.name,
-                    },
-                  });
-                }
-              }
-            })
-            .catch(() => {
-              // Ignore background profile query errors
-            });
-        }
       },
 
       setDevRole: (newRole) => {
