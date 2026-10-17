@@ -21,7 +21,7 @@ const sendError = (res, { status = 500, message = 'Internal Server Error', error
 };
 
 /**
- * Build pagination metadata from Mongoose query results.
+ * Build pagination metadata from query results.
  * @param {number} total   - total matching documents
  * @param {number} page    - current page (1-indexed)
  * @param {number} limit   - items per page

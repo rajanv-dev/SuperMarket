@@ -8,28 +8,33 @@ const errorHandler = (err, req, res, _next) => {
   let status = err.statusCode || err.status || 500;
   let message = err.message || 'Internal Server Error';
 
-  // ── Mongoose Validation Error ─────────────────────────────────────────────
-  if (err.name === 'ValidationError') {
+  // ── Express-validator / Validation Error ───────────────────────────────────
+  if (err.name === 'ValidationError' && err.errors) {
     status = 422;
     message = 'Validation failed';
     const errors = Object.values(err.errors).map((e) => ({
-      field: e.path,
-      message: e.message,
+      field: e.path || e.param,
+      message: e.message || e.msg,
     }));
     return res.status(status).json({ success: false, message, errors });
   }
 
-  // ── Mongoose Duplicate Key ─────────────────────────────────────────────────
-  if (err.code === 11000) {
+  // ── PostgreSQL / Supabase Duplicate Key (23505) ───────────────────────────
+  if (err.code === '23505') {
     status = 409;
-    const field = Object.keys(err.keyValue)[0];
-    message = `${field.charAt(0).toUpperCase() + field.slice(1)} already exists`;
+    message = err.detail || 'A record with this information already exists';
   }
 
-  // ── Mongoose CastError (invalid ObjectId) ────────────────────────────────
-  if (err.name === 'CastError') {
+  // ── PostgreSQL / Supabase Foreign Key Violation (23503) ───────────────────
+  if (err.code === '23503') {
     status = 400;
-    message = `Invalid ${err.path}: ${err.value}`;
+    message = err.detail || 'Referenced record does not exist';
+  }
+
+  // ── PostgreSQL / Supabase Invalid Syntax / UUID (22P02) ───────────────────
+  if (err.code === '22P02') {
+    status = 400;
+    message = 'Invalid identifier syntax or format';
   }
 
   // ── JWT Errors ────────────────────────────────────────────────────────────
@@ -44,7 +49,7 @@ const errorHandler = (err, req, res, _next) => {
 
   // Log full error only in dev; in prod log just the essentials
   if (process.env.NODE_ENV !== 'production') {
-    logger.error(err.stack);
+    logger.error(err.stack || err.message);
   } else {
     logger.error(`${status} - ${message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);
   }

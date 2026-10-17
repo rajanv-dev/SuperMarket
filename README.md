@@ -35,8 +35,8 @@ A production-ready supermarket platform combining online customer shopping, phys
 
 ### Backend (`/server`)
 - **Node.js** & **Express**
-- **MongoDB** & **Mongoose 8**
-- **@supabase/server** & `@supabase/supabase-js`
+- **Supabase PostgreSQL** & **@supabase/supabase-js**
+- **@supabase/server**
 - **Socket.io** (Real-time events)
 - **Winston** (Structured logging) & **Helmet** / **Rate-Limiting** / **CORS** security
 
@@ -47,7 +47,7 @@ A production-ready supermarket platform combining online customer shopping, phys
 ### Prerequisites
 - Node.js (v18 or higher)
 - npm or pnpm
-- MongoDB Atlas or local MongoDB instance
+- Supabase Project (PostgreSQL)
 
 ### 1. Clone Repository
 ```bash
@@ -60,7 +60,7 @@ cd SuperMarket
 cd server
 npm install
 cp .env.example .env
-# Edit .env and supply your MONGO_URI and JWT_SECRET
+# Edit .env and supply your SUPABASE_URL, SUPABASE_SECRET_KEY / SUPABASE_PUBLISHABLE_KEY, and JWT_SECRET
 npm run dev
 ```
 
@@ -73,6 +73,25 @@ npm run dev
 ```
 
 The frontend will run at `http://localhost:5173` and the backend API at `http://localhost:5000`.
+
+---
+
+## 🌐 Render Deployment
+
+### Backend Web Service Environment Variables
+When deploying the Express backend (`server/`) to **Render**, set the following environment variables in the Render Dashboard (under **Environment**):
+
+| Variable Name | Required | Description | Example |
+|---|---|---|---|
+| `NODE_ENV` | Yes | Node environment | `production` |
+| `PORT` | Yes (Render sets default) | Port number | `5000` or `10000` |
+| `SUPABASE_URL` | Yes | Supabase Project URL | `https://dpdfgequagdyiktlresv.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_SECRET_KEY` | Yes | Supabase secret key for server DB operations | `sb_secret_...` or service role key |
+| `SUPABASE_PUBLISHABLE_KEY` | Optional | Supabase public key fallback | `sb_publishable_...` |
+| `JWT_SECRET` | Yes | Secret key for local JWT validation | 64-character random string |
+| `CLIENT_ORIGIN` | Yes | URL of deployed frontend | `https://your-frontend.vercel.app` |
+
+*Note: `MONGO_URI` is no longer required or used.*
 
 ---
 

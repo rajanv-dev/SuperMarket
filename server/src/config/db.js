@@ -1,42 +1,47 @@
-const mongoose = require('mongoose');
+const { supabaseServer, isSupabaseConfigured, supabaseUrl } = require('./supabase');
 const logger = require('../utils/logger');
 
 let isConnected = false;
 
+/**
+ * Initializes and verifies connectivity to Supabase PostgreSQL database.
+ * No longer depends on MongoDB or MONGO_URI.
+ */
 const connectDB = async () => {
-  if (isConnected) return;
+  if (isConnected) return true;
 
-  const uri = process.env.MONGO_URI;
-  if (!uri) {
-    logger.error('MONGO_URI is not defined in environment variables');
-    process.exit(1);
-  }
-
-  try {
-    const conn = await mongoose.connect(uri, {
-      // Mongoose 8 no longer needs useNewUrlParser / useUnifiedTopology
-    });
-    isConnected = true;
-    logger.info(`MongoDB connected: ${conn.connection.host}`);
-  } catch (err) {
-    logger.error(`MongoDB connection failed: ${err.message}`);
+  if (!isSupabaseConfigured || !supabaseServer) {
+    const errorMsg =
+      'Supabase PostgreSQL is not configured: Please set SUPABASE_URL and SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY / SUPABASE_PUBLISHABLE_KEY) in environment variables';
+    logger.error(errorMsg);
     if (process.env.NODE_ENV === 'production') {
       process.exit(1);
     } else {
-      logger.warn('Running in development mode without active MongoDB. Please update MONGO_URI in .env');
+      logger.warn('Running in development mode without active Supabase credentials.');
     }
+    return false;
+  }
+
+  try {
+    const { error } = await supabaseServer.from('products').select('id').limit(1);
+    if (error) {
+      logger.error(`Supabase PostgreSQL connectivity check failed: ${error.message}`);
+      if (process.env.NODE_ENV === 'production') {
+        process.exit(1);
+      }
+      return false;
+    }
+
+    isConnected = true;
+    logger.info(`Supabase PostgreSQL connected successfully (${supabaseUrl})`);
+    return true;
+  } catch (err) {
+    logger.error(`Supabase connection error: ${err.message}`);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+    return false;
   }
 };
-
-// Handle connection events after initial connect
-mongoose.connection.on('disconnected', () => {
-  isConnected = false;
-  logger.warn('MongoDB disconnected');
-});
-
-mongoose.connection.on('reconnected', () => {
-  isConnected = true;
-  logger.info('MongoDB reconnected');
-});
 
 module.exports = connectDB;

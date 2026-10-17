@@ -1,43 +1,85 @@
-require('dotenv').config({ path: '../.env' });
-const mongoose = require('mongoose');
-const User = require('../src/models/User');
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+const { supabaseServer, isSupabaseConfigured } = require('../src/config/supabase');
 const logger = require('../src/utils/logger');
 const { ROLES } = require('../src/config/constants');
 
 const seedAdmin = async () => {
-  const uri = process.env.MONGO_URI;
-  if (!uri) {
-    logger.error('MONGO_URI not set. Aborting seed.');
+  if (!isSupabaseConfigured || !supabaseServer) {
+    logger.error('Supabase is not configured. Aborting seed.');
     process.exit(1);
   }
 
-  await mongoose.connect(uri);
-  logger.info('Connected to MongoDB for seeding');
+  logger.info('Connected to Supabase PostgreSQL for seeding');
 
-  const email = process.env.SEED_ADMIN_EMAIL || 'admin@super.local';
-  const password = process.env.SEED_ADMIN_PASSWORD;
+  const email = (process.env.SEED_ADMIN_EMAIL || 'admin@super.local').toLowerCase().trim();
+  const password = process.env.SEED_ADMIN_PASSWORD || 'Admin@12345';
   const name = process.env.SEED_ADMIN_NAME || 'Super Admin';
 
   if (!password) {
     logger.error('SEED_ADMIN_PASSWORD is not set in .env. Aborting.');
-    await mongoose.disconnect();
     process.exit(1);
   }
 
-  const existing = await User.findOne({ email });
-  if (existing) {
-    logger.info(`Admin already exists: ${email}`);
-  } else {
-    await User.create({
-      name,
-      email,
-      passwordHash: password, // pre-save hook hashes it
-      role: ROLES.ADMIN,
-    });
-    logger.info(`Admin created: ${email}`);
+  // 1. Check existing profile in user_profiles
+  const { data: existing, error: fetchErr } = await supabaseServer
+    .from('user_profiles')
+    .select('*')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (fetchErr) {
+    logger.error(`Error querying user_profiles: ${fetchErr.message}`);
+    process.exit(1);
   }
 
-  await mongoose.disconnect();
+  let authId = existing?.auth_id || null;
+
+  // 2. Try creating or confirming user in Supabase Auth if needed
+  if (!authId) {
+    try {
+      const { data: authData, error: authErr } = await supabaseServer.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
+      });
+
+      if (!authErr && authData?.user) {
+        authId = authData.user.id;
+        logger.info(`Admin user created in Supabase Auth (${email})`);
+      }
+    } catch (err) {
+      logger.warn(`Supabase Auth signup notice: ${err.message}`);
+    }
+  }
+
+  // 3. Upsert admin profile
+  const { data: profile, error: upsertErr } = await supabaseServer
+    .from('user_profiles')
+    .upsert(
+      {
+        auth_id: authId,
+        email,
+        full_name: name,
+        role: ROLES.ADMIN,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'email' }
+    )
+    .select()
+    .single();
+
+  if (upsertErr) {
+    logger.error(`Error upserting admin profile: ${upsertErr.message}`);
+    process.exit(1);
+  }
+
+  logger.info(`Admin profile verified in Supabase: ${profile.email} (${profile.role})`);
   logger.info('Seed complete');
 };
 

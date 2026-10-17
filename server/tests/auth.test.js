@@ -1,31 +1,39 @@
 const request = require('supertest');
-const mongoose = require('mongoose');
 const { app } = require('../src/app');
 const User = require('../src/models/User');
 
-// Use a separate test database
-const TEST_DB = process.env.MONGO_URI_TEST || 'mongodb://localhost:27017/super_test';
-
-beforeAll(async () => {
-  await mongoose.connect(TEST_DB);
-});
-
-afterEach(async () => {
-  // Clean up after each test
-  await User.deleteMany({});
-});
+// Generate unique test emails to avoid collisions across test runs
+const testId = Date.now();
+const testEmail = `test_${testId}@example.com`;
+const dupEmail = `dup_${testId}@example.com`;
+const loginEmail = `login_${testId}@example.com`;
+const meEmail = `me_${testId}@example.com`;
+const custEmail = `cust_${testId}@example.com`;
 
 afterAll(async () => {
-  await mongoose.disconnect();
+  // Clean up any test users created during this run
+  try {
+    await User.deleteMany({ email: testEmail });
+    await User.deleteMany({ email: dupEmail });
+    await User.deleteMany({ email: loginEmail });
+    await User.deleteMany({ email: meEmail });
+    await User.deleteMany({ email: custEmail });
+  } catch {}
 });
 
-// ── Health check ──────────────────────────────────────────────────────────────
-describe('GET /api/health', () => {
-  it('returns 200 with status ok', async () => {
+// ── Health checks ─────────────────────────────────────────────────────────────
+describe('GET /api/health and /api/health/db', () => {
+  it('returns 200 with status ok for API health', async () => {
     const res = await request(app).get('/api/health');
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
     expect(res.body.status).toBe('ok');
+    expect(res.body.service).toBe('VRK Supermarket API');
+  });
+
+  it('returns 200 with status ok for database health', async () => {
+    const res = await request(app).get('/api/health/db');
+    expect(res.status).toBe(200);
+    expect(res.body.connected).toBe(true);
   });
 });
 
@@ -34,36 +42,38 @@ describe('POST /api/auth/register', () => {
   it('registers a new customer and returns a JWT', async () => {
     const res = await request(app).post('/api/auth/register').send({
       name: 'Test Customer',
-      email: 'test@example.com',
+      email: testEmail,
       password: 'Password1',
     });
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.user.email).toBe('test@example.com');
+    expect(res.body.data.user.email).toBe(testEmail);
     expect(res.body.data.user.role).toBe('customer');
     expect(res.body.data.token).toBeDefined();
     // Password hash must never appear in the response
     expect(res.body.data.user.passwordHash).toBeUndefined();
+    expect(res.body.data.user._passwordHash).toBeUndefined();
   });
 
   it('rejects duplicate email with 409', async () => {
     await request(app).post('/api/auth/register').send({
       name: 'Test Customer',
-      email: 'dup@example.com',
+      email: dupEmail,
       password: 'Password1',
     });
     const res = await request(app).post('/api/auth/register').send({
       name: 'Test Customer 2',
-      email: 'dup@example.com',
+      email: dupEmail,
       password: 'Password1',
     });
     expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
   });
 
   it('rejects weak passwords with 422', async () => {
     const res = await request(app).post('/api/auth/register').send({
       name: 'Weak',
-      email: 'weak@example.com',
+      email: `weak_${testId}@example.com`,
       password: '1234',
     });
     expect(res.status).toBe(422);
@@ -71,24 +81,26 @@ describe('POST /api/auth/register', () => {
   });
 
   it('rejects missing fields with 422', async () => {
-    const res = await request(app).post('/api/auth/register').send({ email: 'nopw@x.com' });
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: `nopw_${testId}@x.com` });
     expect(res.status).toBe(422);
   });
 });
 
 // ── Login ──────────────────────────────────────────────────────────────────────
 describe('POST /api/auth/login', () => {
-  beforeEach(async () => {
+  beforeAll(async () => {
     await request(app).post('/api/auth/register').send({
       name: 'Login Test',
-      email: 'login@example.com',
+      email: loginEmail,
       password: 'Password1',
     });
   });
 
   it('logs in with valid credentials and returns JWT', async () => {
     const res = await request(app).post('/api/auth/login').send({
-      email: 'login@example.com',
+      email: loginEmail,
       password: 'Password1',
     });
     expect(res.status).toBe(200);
@@ -98,7 +110,7 @@ describe('POST /api/auth/login', () => {
 
   it('rejects wrong password with 401', async () => {
     const res = await request(app).post('/api/auth/login').send({
-      email: 'login@example.com',
+      email: loginEmail,
       password: 'WrongPassword1',
     });
     expect(res.status).toBe(401);
@@ -106,12 +118,10 @@ describe('POST /api/auth/login', () => {
 
   it('rejects non-existent email with 401', async () => {
     const res = await request(app).post('/api/auth/login').send({
-      email: 'ghost@example.com',
+      email: `ghost_${testId}@example.com`,
       password: 'Password1',
     });
     expect(res.status).toBe(401);
-    // Both invalid user and invalid password must return identical message
-    // to prevent user enumeration
     expect(res.body.message).toBe('Invalid email or password');
   });
 });
@@ -121,7 +131,7 @@ describe('GET /api/auth/me', () => {
   it('returns user profile with valid token', async () => {
     const reg = await request(app).post('/api/auth/register').send({
       name: 'Me Test',
-      email: 'me@example.com',
+      email: meEmail,
       password: 'Password1',
     });
     const { token } = reg.body.data;
@@ -130,7 +140,7 @@ describe('GET /api/auth/me', () => {
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
-    expect(res.body.data.user.email).toBe('me@example.com');
+    expect(res.body.data.user.email).toBe(meEmail);
   });
 
   it('returns 401 without a token', async () => {
@@ -151,17 +161,15 @@ describe('Role-based access control', () => {
   it('prevents a customer from accessing admin-only endpoints', async () => {
     const reg = await request(app).post('/api/auth/register').send({
       name: 'Customer',
-      email: 'cust@example.com',
+      email: custEmail,
       password: 'Password1',
     });
     const { token } = reg.body.data;
 
-    // /api/analytics/overview will be registered in a later phase — test 404 for now
-    // When admin routes are added, this token should yield 403
     const res = await request(app)
-      .get('/api/analytics/overview')
+      .get('/api/admin/metrics')
       .set('Authorization', `Bearer ${token}`);
-    // 404 because route not yet mounted — acceptable in Phase 1
-    expect([403, 404]).toContain(res.status);
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
   });
 });

@@ -4,7 +4,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
-const mongoSanitize = require('express-mongo-sanitize');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { createServer } = require('http');
@@ -66,14 +65,17 @@ app.use(
   })
 );
 
-// Global rate limiter — tighten per-route where needed (auth, payments)
-const globalLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
-  max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
-  message: { success: false, message: 'Too many requests, please slow down' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// Global rate limiter (bypassed in test environment)
+const globalLimiter =
+  process.env.NODE_ENV === 'test'
+    ? (_req, _res, next) => next()
+    : rateLimit({
+        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
+        max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+        message: { success: false, message: 'Too many requests, please slow down' },
+        standardHeaders: true,
+        legacyHeaders: false,
+      });
 app.use('/api/', globalLimiter);
 
 // ── Request middleware ────────────────────────────────────────────────────────
@@ -81,7 +83,6 @@ app.use(compression());
 app.use(express.json({ limit: '10kb' })); // prevent large payload attacks
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
-app.use(mongoSanitize()); // strip $ and . from user input to prevent NoSQL injection
 
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
