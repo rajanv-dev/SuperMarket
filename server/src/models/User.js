@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 
 /**
  * User Entity wrapper representing a record in public.user_profiles.
- * Maintains full interface compatibility with earlier Mongoose methods
+ * Maintains full interface compatibility with earlier ORM methods
  * while persisting to Supabase PostgreSQL.
  */
 class UserEntity {
@@ -100,7 +100,7 @@ class UserEntity {
 }
 
 /**
- * Chainable query wrapper for Mongoose query-style chained methods (.select(), .populate())
+ * Chainable query wrapper for fluent chained methods (.select(), .populate())
  */
 class QueryPromise extends Promise {
   select(_fields) {

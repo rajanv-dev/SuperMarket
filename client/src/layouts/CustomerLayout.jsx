@@ -167,7 +167,7 @@ export default function CustomerLayout() {
 
                   {/* Dropdown Menu */}
                   {userMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-50 animate-slide-up">
+                    <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-50 animate-slide-up">
                       {/* User Header */}
                       <div className="px-4 py-3 border-b border-slate-100">
                         <p className="text-xs font-bold text-slate-900 truncate">{displayName}</p>
@@ -200,7 +200,7 @@ export default function CustomerLayout() {
                         </Link>
 
                         <Link
-                          to="/profile#wishlist"
+                          to="/profile"
                           onClick={() => setUserMenuOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 hover:text-slate-900 transition-colors"
                         >
@@ -332,6 +332,12 @@ export default function CustomerLayout() {
                 </div>
                 <Link to="/profile" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-slate-600">Profile</Link>
                 <Link to="/orders" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-slate-600">My Orders</Link>
+                {(user.role === 'admin' || user.role === 'manager') && (
+                  <Link to="/admin" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-primary-600 font-bold">Admin Panel</Link>
+                )}
+                {(user.role === 'cashier' || user.role === 'admin') && (
+                  <Link to="/pos" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-emerald-600 font-bold">POS Terminal</Link>
+                )}
                 <button onClick={handleLogout} className="block py-1 text-rose-600 font-bold">Sign Out</button>
               </div>
             ) : (
@@ -356,7 +362,7 @@ export default function CustomerLayout() {
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       <footer className="bg-slate-900 text-slate-400 mt-16 border-t border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
           <div>
             <h3 className="text-white font-display font-bold text-lg mb-3">🛒 VRK Supermarket</h3>
             <p className="text-sm leading-relaxed text-slate-400">

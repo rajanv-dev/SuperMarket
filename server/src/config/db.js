@@ -5,7 +5,6 @@ let isConnected = false;
 
 /**
  * Initializes and verifies connectivity to Supabase PostgreSQL database.
- * No longer depends on MongoDB or MONGO_URI.
  */
 const connectDB = async () => {
   if (isConnected) return true;

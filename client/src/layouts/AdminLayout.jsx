@@ -206,7 +206,7 @@ export default function AdminLayout() {
               </button>
 
               {notificationsOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animate-slide-up">
+                <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animate-slide-up">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <span className="font-bold text-sm text-slate-900">Notifications</span>
                     <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
@@ -243,7 +243,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 animate-fade-in">
+        <main className="flex-1 overflow-y-auto p-3.5 sm:p-6 lg:p-8 animate-fade-in">
           <Outlet />
         </main>
       </div>

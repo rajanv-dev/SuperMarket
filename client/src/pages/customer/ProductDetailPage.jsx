@@ -182,7 +182,7 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Supermarket Guarantees */}
-          <div className="grid grid-cols-3 gap-2 text-center pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center pt-2">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
               <Truck className="w-4 h-4 text-emerald-600 mx-auto mb-1" />
               <p className="text-[11px] font-bold text-slate-800">15-Min Delivery</p>

@@ -18,21 +18,21 @@ export default function HomePage() {
   return (
     <div className="space-y-12 pb-16">
       {/* ── Hero Banner ────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary-900 via-primary-800 to-emerald-950 text-white rounded-3xl mx-4 sm:mx-6 lg:mx-8 mt-6 p-8 sm:p-12 shadow-2xl">
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary-900 via-primary-800 to-emerald-950 text-white rounded-3xl mx-3 sm:mx-6 lg:mx-8 mt-4 sm:mt-6 p-5 sm:p-12 shadow-2xl">
         <div className="relative z-10 max-w-2xl space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold text-emerald-300">
             <Sparkles className="w-3.5 h-3.5" /> Fresh Farm Supermarket
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight">
             Fresh Groceries Delivered in 15 Minutes
           </h1>
-          <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+          <p className="text-slate-300 text-xs sm:text-base leading-relaxed">
             Shop fresh produce, dairy, bakery essentials, and household goods directly from our supermarket fulfillment hubs.
           </p>
           <div className="pt-2 flex items-center gap-3">
             <Link
               to="/products"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white text-primary-900 font-bold text-sm shadow-lg hover:bg-slate-100 transition-all hover:scale-105 active:scale-95"
+              className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl bg-white text-primary-900 font-bold text-xs sm:text-sm shadow-lg hover:bg-slate-100 transition-all hover:scale-105 active:scale-95"
             >
               Shop All Products <ArrowRight className="w-4 h-4" />
             </Link>
@@ -40,17 +40,17 @@ export default function HomePage() {
         </div>
 
         {/* Feature badges */}
-        <div className="mt-8 pt-8 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-semibold text-slate-300">
+        <div className="mt-8 pt-8 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-xs font-semibold text-slate-300">
           <div className="flex items-center gap-2.5">
-            <Truck className="w-5 h-5 text-emerald-400" />
+            <Truck className="w-5 h-5 text-emerald-400 shrink-0" />
             <span>Express Hyperlocal Delivery</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
             <span>100% Quality & Freshness Guarantee</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <Clock className="w-5 h-5 text-emerald-400" />
+            <Clock className="w-5 h-5 text-emerald-400 shrink-0" />
             <span>Live Inventory Synchronization</span>
           </div>
         </div>

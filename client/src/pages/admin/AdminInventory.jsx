@@ -179,10 +179,10 @@ export default function AdminInventory() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-200 gap-2">
+      <div className="flex border-b border-slate-200 gap-2 overflow-x-auto scrollbar-none whitespace-nowrap">
         <button
           onClick={() => setActiveTab('batches')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 ${
             activeTab === 'batches'
               ? 'border-primary-600 text-primary-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -194,7 +194,7 @@ export default function AdminInventory() {
 
         <button
           onClick={() => setActiveTab('receive')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 ${
             activeTab === 'receive'
               ? 'border-primary-600 text-primary-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -206,7 +206,7 @@ export default function AdminInventory() {
 
         <button
           onClick={() => setActiveTab('adjust')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 ${
             activeTab === 'adjust'
               ? 'border-primary-600 text-primary-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -218,7 +218,7 @@ export default function AdminInventory() {
 
         <button
           onClick={() => setActiveTab('movements')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 ${
             activeTab === 'movements'
               ? 'border-primary-600 text-primary-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'

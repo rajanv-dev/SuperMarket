@@ -391,10 +391,10 @@ export default function AdminAttendance() {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto scrollbar-none whitespace-nowrap">
         <button
           onClick={() => setActiveTab('scanner')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeTab === 'scanner'
               ? 'bg-primary-600 text-white shadow-sm shadow-primary-500/20'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -406,7 +406,7 @@ export default function AdminAttendance() {
 
         <button
           onClick={() => setActiveTab('records')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeTab === 'records'
               ? 'bg-primary-600 text-white shadow-sm shadow-primary-500/20'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -418,7 +418,7 @@ export default function AdminAttendance() {
 
         <button
           onClick={() => setActiveTab('staff_cards')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeTab === 'staff_cards'
               ? 'bg-primary-600 text-white shadow-sm shadow-primary-500/20'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'

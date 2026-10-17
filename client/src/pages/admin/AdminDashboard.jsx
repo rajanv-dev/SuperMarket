@@ -259,7 +259,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* 4 Attendance KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           {/* Card 1: Present Today */}
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all">
             <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1">
