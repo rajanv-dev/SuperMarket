@@ -66,8 +66,15 @@ router.post('/', async (req, res) => {
       customerEmail,
       customerPhone,
       deliveryAddress,
+      houseNo,
+      street,
+      area,
       city,
       pincode,
+      postalCode,
+      latitude,
+      longitude,
+      deliveryNotes,
       paymentMethod = 'cod', // 'cod' | 'card' | 'upi'
       notes,
     } = req.body;
@@ -169,11 +176,18 @@ router.post('/', async (req, res) => {
     const randSuffix = Math.floor(1000 + Math.random() * 9000);
     const orderNumber = `ORD-${datePrefix}-${randSuffix}`;
 
+    const effectivePin = (postalCode || pincode || '').trim();
     const formattedAddress = [
+      houseNo ? `Flat/House ${houseNo}` : null,
+      street,
+      area,
       deliveryAddress,
       city,
-      pincode ? `PIN: ${pincode}` : '',
+      effectivePin ? `PIN: ${effectivePin}` : '',
     ].filter(Boolean).join(', ');
+
+    const finalAddress = deliveryAddress || formattedAddress;
+    const finalDeliveryNotes = deliveryNotes || notes;
 
     // ── Insert into public.orders ───────────────────────────────────────────
     const { data: newOrder, error: oErr } = await supabaseServer
@@ -190,10 +204,20 @@ router.post('/', async (req, res) => {
           payment_method: ['cash', 'cod', 'card', 'upi', 'online', 'split'].includes(paymentMethod) ? paymentMethod : 'cod',
           payment_status: paymentMethod === 'cod' || paymentMethod === 'cash' ? 'pending' : 'paid',
           subtotal: calculatedSubtotal,
+          delivery_fee: deliveryFee,
           discount: 0,
           tax: 0,
           total: calculatedTotal,
-          notes: notes ? `${notes} | Ship to: ${formattedAddress}` : `Ship to: ${formattedAddress}`,
+          delivery_address: finalAddress,
+          house_no: houseNo || null,
+          street: street || null,
+          area: area || null,
+          city: city || null,
+          postal_code: effectivePin || null,
+          latitude: latitude !== undefined && latitude !== null && !isNaN(Number(latitude)) ? Number(latitude) : null,
+          longitude: longitude !== undefined && longitude !== null && !isNaN(Number(longitude)) ? Number(longitude) : null,
+          delivery_notes: finalDeliveryNotes || null,
+          notes: finalDeliveryNotes ? `${finalDeliveryNotes} | Ship to: ${finalAddress}` : `Ship to: ${finalAddress}`,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -310,6 +334,75 @@ router.get('/:id', async (req, res) => {
     }
 
     return sendSuccess(res, { status: 200, data: order });
+  } catch (err) {
+    return sendError(res, { status: 500, message: err.message });
+  }
+});
+
+/**
+ * PATCH /api/orders/:id/status
+ * Allows authorized staff or admin to update order fulfillment status
+ * Supports: pending, confirmed, packed, out_for_delivery, delivered, cancelled
+ */
+router.patch('/:id/status', async (req, res) => {
+  try {
+    if (!supabaseServer) {
+      return sendError(res, { status: 503, message: 'Database service unavailable' });
+    }
+
+    const authUser = await extractUser(req);
+    const allowedRoles = ['admin', 'inventoryManager', 'cashier', 'manager', 'staff'];
+    if (!authUser || !allowedRoles.includes(authUser.role)) {
+      return sendError(res, { status: 403, message: 'Only authorized staff can update order status' });
+    }
+
+    const { id } = req.params;
+    const { status, notes } = req.body;
+
+    const validStatuses = [
+      'pending',
+      'confirmed',
+      'packed',
+      'out_for_delivery',
+      'delivered',
+      'cancelled',
+      'completed',
+    ];
+
+    const cleanStatus = (status || '').toLowerCase().trim();
+    if (!cleanStatus || !validStatuses.includes(cleanStatus)) {
+      return sendError(res, {
+        status: 400,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      });
+    }
+
+    const updates = {
+      status: cleanStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (notes) {
+      updates.delivery_notes = notes;
+    }
+
+    const { data: updated, error } = await supabaseServer
+      .from('orders')
+      .update(updates)
+      .eq('id', id)
+      .select('*, order_items(*)')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!updated) {
+      return sendError(res, { status: 404, message: 'Order not found' });
+    }
+
+    return sendSuccess(res, {
+      status: 200,
+      message: `Order status updated to "${cleanStatus}" successfully`,
+      data: updated,
+    });
   } catch (err) {
     return sendError(res, { status: 500, message: err.message });
   }
