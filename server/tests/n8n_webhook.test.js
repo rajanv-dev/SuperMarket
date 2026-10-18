@@ -1,4 +1,4 @@
-const { sendOrderConfirmationWebhook, dispatchedOrderIds } = require('../src/services/n8nWebhookService');
+const { sendOrderConfirmationWebhook, testWebhookConnection, dispatchedOrderIds } = require('../src/services/n8nWebhookService');
 
 describe('n8n Webhook Service — WhatsApp Order Confirmation Dispatcher', () => {
   const originalEnv = process.env.N8N_ORDER_WEBHOOK_URL;
@@ -129,5 +129,21 @@ describe('n8n Webhook Service — WhatsApp Order Confirmation Dispatcher', () =>
     expect(result.success).toBe(false);
     expect(result.skipped).toBe(true);
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('runs diagnostic testWebhookConnection without adding to idempotency cache', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '{"success":true,"diagnostic":true}',
+    });
+
+    const result = await testWebhookConnection();
+
+    expect(result.configured).toBe(true);
+    expect(result.success).toBe(true);
+    expect(result.statusCode).toBe(200);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(dispatchedOrderIds.size).toBe(0); // Bypassed idempotency cache
   });
 });

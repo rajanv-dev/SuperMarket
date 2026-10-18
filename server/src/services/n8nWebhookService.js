@@ -70,11 +70,12 @@ const logNotificationStatus = async ({
  *
  * @param {Object} order - Authoritative order record from database
  * @param {Array} [orderItems=[]] - Line items associated with the order
- * @param {Object} [options={}] - Additional metadata or override options
- * @returns {Promise<{ success: boolean, attempts: number, error?: string }>}
+ * @param {Object} [options={}] - Additional metadata or override options (e.g. { isDiagnostic: true })
+ * @returns {Promise<{ success: boolean, statusCode?: number, attempts: number, error?: string, responseBody?: string }>}
  */
 const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}) => {
   const webhookUrl = process.env.N8N_ORDER_WEBHOOK_URL;
+  const isDiagnostic = Boolean(options.isDiagnostic);
 
   if (!webhookUrl || !webhookUrl.trim()) {
     logger.info('N8N_ORDER_WEBHOOK_URL is not configured; skipping WhatsApp order confirmation webhook');
@@ -86,22 +87,23 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
     return { success: false, attempts: 0, reason: 'invalid_order' };
   }
 
-  // Idempotency: Prevent duplicate dispatch for the same order ID
+  // Idempotency: Prevent duplicate dispatch for the same order ID (skip for diagnostic tests)
   const orderKey = String(order.id);
-  if (dispatchedOrderIds.has(orderKey)) {
+  if (!isDiagnostic && dispatchedOrderIds.has(orderKey)) {
     logger.warn(
       `[DUPLICATE_PREVENTED] n8nWebhookService: Webhook already dispatched for order ${order.order_number || order.id}; skipping duplicate`
     );
     return { success: true, attempts: 0, duplicateSuppressed: true };
   }
 
-  // Mark order key as in-flight / dispatched
-  dispatchedOrderIds.add(orderKey);
+  if (!isDiagnostic) {
+    dispatchedOrderIds.add(orderKey);
 
-  // Evict older keys if set grows beyond 5000 items to avoid memory leak
-  if (dispatchedOrderIds.size > 5000) {
-    const firstKey = dispatchedOrderIds.values().next().value;
-    dispatchedOrderIds.delete(firstKey);
+    // Evict older keys if set grows beyond 5000 items to avoid memory leak
+    if (dispatchedOrderIds.size > 5000) {
+      const firstKey = dispatchedOrderIds.values().next().value;
+      dispatchedOrderIds.delete(firstKey);
+    }
   }
 
   // Phone normalization
@@ -156,6 +158,7 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
     deliveryNotes: order.delivery_notes || null,
     whatsappOptIn: true,
     itemsCount: lineItems.length,
+    isDiagnosticTest: isDiagnostic,
   };
 
   // Configure authentication headers
@@ -183,7 +186,7 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
   }
 
   const timeoutMs = parseInt(process.env.N8N_WEBHOOK_TIMEOUT_MS || '8000', 10);
-  const maxRetries = 2;
+  const maxRetries = isDiagnostic ? 0 : 2;
   let attempt = 0;
   let lastError = null;
 
@@ -192,16 +195,18 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
     `[N8N_WEBHOOK_REQUEST_STARTED] OrderId=${order.id} OrderNumber=${order.order_number} RecipientPhone=${maskedPhone} Timestamp=${new Date().toISOString()}`
   );
 
-  await logNotificationStatus({
-    orderId: order.id,
-    recipientPhone: normalizedPhone || rawCustomerPhone,
-    status: 'pending',
-    metadata: {
-      orderNumber: order.order_number,
-      total: order.total,
-      maskedPhone,
-    },
-  });
+  if (!isDiagnostic) {
+    await logNotificationStatus({
+      orderId: order.id,
+      recipientPhone: normalizedPhone || rawCustomerPhone,
+      status: 'pending',
+      metadata: {
+        orderNumber: order.order_number,
+        total: order.total,
+        maskedPhone,
+      },
+    });
+  }
 
   while (attempt <= maxRetries) {
     attempt++;
@@ -229,21 +234,24 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
           `[N8N_WEBHOOK_REQUEST_SUCCEEDED] OrderId=${order.id} OrderNumber=${order.order_number} StatusCode=${status} Attempts=${attempt} Timestamp=${new Date().toISOString()}`
         );
 
-        await logNotificationStatus({
-          orderId: order.id,
-          recipientPhone: normalizedPhone || rawCustomerPhone,
-          status: 'sent',
-          metadata: {
-            attempts: attempt,
-            statusCode: status,
-            sentAt: new Date().toISOString(),
-          },
-        });
+        if (!isDiagnostic) {
+          await logNotificationStatus({
+            orderId: order.id,
+            recipientPhone: normalizedPhone || rawCustomerPhone,
+            status: 'sent',
+            metadata: {
+              attempts: attempt,
+              statusCode: status,
+              sentAt: new Date().toISOString(),
+            },
+          });
+        }
 
         return {
           success: true,
           statusCode: status,
           attempts: attempt,
+          responseBody: responseText,
         };
       }
 
@@ -251,27 +259,30 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
       if (status >= 400 && status < 500) {
         const safeTarget = sanitizeUrl(webhookUrl);
         const errDetail = status === 403 && responseText.includes('Authorization')
-          ? 'Basic Authentication required on n8n webhook; configure N8N_WEBHOOK_USER/PASSWORD or set Authentication: None in n8n'
+          ? 'Basic Authentication required on n8n webhook; configure N8N_WEBHOOK_USER/PASSWORD in Render or set Authentication: None in n8n'
           : responseText.slice(0, 200);
 
         logger.error(
           `[N8N_WEBHOOK_REQUEST_FAILED] OrderId=${order.id} OrderNumber=${order.order_number} StatusCode=${status} Target=${safeTarget} Reason=${errDetail} Timestamp=${new Date().toISOString()}`
         );
 
-        await logNotificationStatus({
-          orderId: order.id,
-          recipientPhone: normalizedPhone || rawCustomerPhone,
-          status: 'failed',
-          errorCode: `HTTP_${status}`,
-          errorMessage: errDetail,
-          metadata: { attempts: attempt, statusCode: status },
-        });
+        if (!isDiagnostic) {
+          await logNotificationStatus({
+            orderId: order.id,
+            recipientPhone: normalizedPhone || rawCustomerPhone,
+            status: 'failed',
+            errorCode: `HTTP_${status}`,
+            errorMessage: errDetail,
+            metadata: { attempts: attempt, statusCode: status },
+          });
+        }
 
         return {
           success: false,
           statusCode: status,
           attempts: attempt,
           error: `HTTP ${status}: ${errDetail}`,
+          responseBody: responseText,
         };
       }
 
@@ -298,14 +309,16 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
     `[N8N_WEBHOOK_REQUEST_FAILED] OrderId=${order.id} OrderNumber=${order.order_number} ExhaustedAttempts=${attempt} Error=${lastError?.message} Timestamp=${new Date().toISOString()}`
   );
 
-  await logNotificationStatus({
-    orderId: order.id,
-    recipientPhone: normalizedPhone || rawCustomerPhone,
-    status: 'failed',
-    errorCode: 'NETWORK_ERROR',
-    errorMessage: lastError?.message || 'Unknown network error',
-    metadata: { attempts: attempt },
-  });
+  if (!isDiagnostic) {
+    await logNotificationStatus({
+      orderId: order.id,
+      recipientPhone: normalizedPhone || rawCustomerPhone,
+      status: 'failed',
+      errorCode: 'NETWORK_ERROR',
+      errorMessage: lastError?.message || 'Unknown network error',
+      metadata: { attempts: attempt },
+    });
+  }
 
   return {
     success: false,
@@ -314,8 +327,61 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
   };
 };
 
+/**
+ * Diagnostic method to test the live webhook connection without placing a customer order.
+ */
+const testWebhookConnection = async () => {
+  const webhookUrl = process.env.N8N_ORDER_WEBHOOK_URL;
+  if (!webhookUrl || !webhookUrl.trim()) {
+    return {
+      success: false,
+      configured: false,
+      error: 'N8N_ORDER_WEBHOOK_URL is not configured in environment variables',
+    };
+  }
+
+  const dummyOrder = {
+    id: 'diagnostic-' + Date.now(),
+    order_number: 'ORD-DIAGNOSTIC-PING',
+    customer_name: 'Diagnostic Tester',
+    customer_phone: '+919894508265',
+    customer_email: 'tester@super.local',
+    status: 'pending',
+    payment_method: 'cod',
+    payment_status: 'pending',
+    subtotal: 65,
+    delivery_fee: 40,
+    total: 105,
+    delivery_address: '123 Test Street, Chennai 600001',
+    created_at: new Date().toISOString(),
+  };
+
+  const dummyItems = [
+    {
+      product_id: 'prod-test-01',
+      product_name: 'Rice 1kg',
+      sku: 'GRC-RICE-001',
+      price: 65,
+      quantity: 1,
+      total: 65,
+    },
+  ];
+
+  const startTime = Date.now();
+  const result = await sendOrderConfirmationWebhook(dummyOrder, dummyItems, { isDiagnostic: true });
+  const latencyMs = Date.now() - startTime;
+
+  return {
+    configured: true,
+    targetUrl: sanitizeUrl(webhookUrl),
+    latencyMs,
+    ...result,
+  };
+};
+
 module.exports = {
   sendOrderConfirmationWebhook,
+  testWebhookConnection,
   logNotificationStatus,
   dispatchedOrderIds,
 };
