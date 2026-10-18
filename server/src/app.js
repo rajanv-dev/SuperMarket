@@ -21,6 +21,7 @@ const attendanceRoutes = require('./modules/attendance/attendance.routes');
 const staffRoutes = require('./modules/staff/staff.routes');
 const cartRoutes = require('./modules/cart/cart.routes');
 const orderRoutes = require('./modules/orders/orders.routes');
+const internalOrderRoutes = require('./modules/orders/internal.routes');
 
 // ── App setup ─────────────────────────────────────────────────────────────────
 const app = express();
@@ -150,6 +151,7 @@ app.use('/api/admin/attendance', attendanceRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/internal/orders', internalOrderRoutes);
 // app.use('/api/payments',    paymentRoutes);
 // app.use('/api/inventory',   inventoryRoutes);
 // app.use('/api/pos',         posRoutes);

@@ -61,13 +61,22 @@ export default function AdminLayout() {
     <aside className="flex flex-col h-full bg-slate-900 text-slate-300 w-64 border-r border-slate-800">
       {/* Brand header */}
       <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
-        <Link to="/admin" className="flex items-center gap-2">
-          <span className="text-xl font-black bg-gradient-to-r from-primary-400 to-emerald-400 bg-clip-text text-transparent">
-            VRK
-          </span>
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-500/10 text-primary-400 border border-primary-500/20 uppercase tracking-wider">
-            Supermarket Admin
-          </span>
+        <Link to="/admin" className="flex items-center gap-2.5 group">
+          <img
+            src="/logo.png"
+            alt="VRK Shopping Mall & Supermarket Logo"
+            className="w-8 h-8 vrk-logo-3d shrink-0"
+            width="32"
+            height="32"
+          />
+          <div className="flex flex-col">
+            <span className="text-base font-black bg-gradient-to-r from-blue-400 via-primary-300 to-red-400 bg-clip-text text-transparent leading-none">
+              VRK Supermarket
+            </span>
+            <span className="text-[10px] font-semibold text-blue-400/90 uppercase tracking-wider mt-0.5">
+              Admin Portal
+            </span>
+          </div>
         </Link>
         <button
           onClick={() => setSidebarOpen(false)}
@@ -190,9 +199,20 @@ export default function AdminLayout() {
             <button
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100"
+              aria-label="Open navigation sidebar"
             >
               <Menu className="w-5 h-5" />
             </button>
+            <div className="lg:hidden flex items-center gap-2">
+              <img
+                src="/logo.png"
+                alt="VRK Supermarket Logo"
+                className="w-7 h-7 vrk-logo-3d shrink-0"
+                width="28"
+                height="28"
+              />
+              <span className="font-bold text-sm text-slate-900">VRK Admin</span>
+            </div>
             <div className="hidden sm:block">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Supermarket Management System

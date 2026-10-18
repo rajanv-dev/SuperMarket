@@ -14,8 +14,14 @@ export default function CashierLayout() {
   return (
     <div className="min-h-screen bg-surface-900 flex flex-col">
       <header className="bg-surface-800 border-b border-surface-700 px-3 sm:px-4 h-14 flex items-center justify-between gap-2">
-        <span className="font-display font-bold text-white flex items-center gap-2 text-sm sm:text-base shrink-0">
-          <Receipt className="w-5 h-5 text-primary-400 shrink-0" />
+        <span className="font-display font-bold text-white flex items-center gap-2.5 text-sm sm:text-base shrink-0">
+          <img
+            src="/logo.png"
+            alt="VRK Shopping Mall & Supermarket Logo"
+            className="w-7 h-7 vrk-logo-3d shrink-0"
+            width="28"
+            height="28"
+          />
           <span className="hidden sm:inline">VRK Supermarket POS</span>
           <span className="sm:hidden">VRK POS</span>
         </span>

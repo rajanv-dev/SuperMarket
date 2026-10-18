@@ -219,4 +219,91 @@ describe('E-Commerce Cart and Orders API', () => {
       expect([400, 403]).toContain(res.status);
     });
   });
+
+  // ── 4. Internal Orders Endpoint & WhatsApp Opt-In ─────────────────────────
+  describe('GET /api/internal/orders/:id and WhatsApp Opt-in', () => {
+    let createdOptedInOrder = null;
+    let createdOptedOutOrder = null;
+
+    it('creates an order with WhatsApp opt-in enabled and tags the order', async () => {
+      if (!sampleProduct) return;
+
+      const res = await request(app)
+        .post('/api/orders')
+        .send({
+          items: [{ productId: sampleProduct.id, qty: 1 }],
+          customerName: 'WhatsApp Opt-In User',
+          customerEmail: `wa.in.${Date.now()}@example.com`,
+          customerPhone: '9876543219',
+          deliveryAddress: '789 Green Park, Bangalore',
+          city: 'Bangalore',
+          postalCode: '560025',
+          paymentMethod: 'cod',
+          whatsappOptIn: true,
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.whatsappOptIn).toBe(true);
+
+      createdOptedInOrder = res.body.data;
+    });
+
+    it('creates an order with WhatsApp opt-in disabled when opted out', async () => {
+      if (!sampleProduct) return;
+
+      const res = await request(app)
+        .post('/api/orders')
+        .send({
+          items: [{ productId: sampleProduct.id, qty: 1 }],
+          customerName: 'WhatsApp Opt-Out User',
+          customerEmail: `wa.out.${Date.now()}@example.com`,
+          customerPhone: '9876543218',
+          deliveryAddress: '321 Silent Lane, Bangalore',
+          city: 'Bangalore',
+          postalCode: '560025',
+          paymentMethod: 'cod',
+          whatsappOptIn: false,
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.whatsappOptIn).toBe(false);
+
+      createdOptedOutOrder = res.body.data;
+    });
+
+    it('fetches order details by UUID via GET /api/internal/orders/:id', async () => {
+      if (!createdOptedInOrder) return;
+
+      const res = await request(app).get(`/api/internal/orders/${createdOptedInOrder.orderId}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.id).toBe(createdOptedInOrder.orderId);
+      expect(res.body.data.order_number).toBe(createdOptedInOrder.orderNumber);
+      expect(res.body.data.order_items.length).toBeGreaterThan(0);
+      expect(res.body.data.notes).toContain('[WhatsApp Opt-in: Yes]');
+    });
+
+    it('fetches order details by human-readable order_number via GET /api/internal/orders/:id', async () => {
+      if (!createdOptedInOrder) return;
+
+      const res = await request(app).get(`/api/internal/orders/${createdOptedInOrder.orderNumber}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.id).toBe(createdOptedInOrder.orderId);
+      expect(res.body.data.order_number).toBe(createdOptedInOrder.orderNumber);
+      expect(res.body.data.items.length).toBeGreaterThan(0);
+    });
+
+    it('returns 404 for non-existent order ID', async () => {
+      const res = await request(app).get('/api/internal/orders/non-existent-order-id-9999');
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+    });
+  });
 });
+

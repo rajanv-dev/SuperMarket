@@ -19,6 +19,7 @@ import {
   Plus,
   Minus,
   Zap,
+  MessageSquare,
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import useCartStore from '../../store/cartStore';
@@ -67,6 +68,7 @@ export default function CheckoutPage() {
   const [isAddressConfirmed, setIsAddressConfirmed] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState('cod'); // 'cod' | 'upi' | 'card'
+  const [whatsappOptIn, setWhatsappOptIn] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -178,6 +180,7 @@ export default function CheckoutPage() {
         deliveryNotes: deliveryData.deliveryNotes || formData.notes,
         paymentMethod,
         notes: deliveryData.deliveryNotes || formData.notes || undefined,
+        whatsappOptIn: Boolean(whatsappOptIn),
       };
 
       const res = await orderService.create(orderPayload);
@@ -308,6 +311,28 @@ export default function CheckoutPage() {
                 </div>
               </div>
             </div>
+
+            {/* WhatsApp Order Notification Opt-in */}
+            <div className="pt-2">
+              <label className="flex items-start gap-3 p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 cursor-pointer hover:bg-emerald-50 transition-colors select-none">
+                <input
+                  type="checkbox"
+                  id="whatsapp-opt-in-checkbox"
+                  checked={whatsappOptIn}
+                  onChange={(e) => setWhatsappOptIn(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-emerald-300 accent-emerald-600 cursor-pointer shrink-0"
+                />
+                <div className="text-xs">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    Send order confirmation & live tracking on WhatsApp
+                  </span>
+                  <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
+                    Receive your order confirmation, digital bill, and real-time delivery status updates sent directly to your phone.
+                  </p>
+                </div>
+              </label>
+            </div>
           </div>
 
           {/* 2. Google Maps Delivery Location Selection */}
@@ -354,12 +379,12 @@ export default function CheckoutPage() {
               <label
                 className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 cursor-pointer transition-all ${
                   paymentMethod === 'cod'
-                    ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20'
+                    ? 'border-primary-500 bg-primary-50/60 ring-2 ring-primary-500/20'
                     : 'border-slate-200 bg-white hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <Banknote className="w-5 h-5 text-emerald-600" />
+                  <Banknote className="w-5 h-5 text-primary-600" />
                   <input
                     type="radio"
                     name="paymentMethod"
@@ -379,7 +404,7 @@ export default function CheckoutPage() {
               <label
                 className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 cursor-pointer transition-all ${
                   paymentMethod === 'upi'
-                    ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20'
+                    ? 'border-primary-500 bg-primary-50/60 ring-2 ring-primary-500/20'
                     : 'border-slate-200 bg-white hover:bg-slate-50'
                 }`}
               >
@@ -404,7 +429,7 @@ export default function CheckoutPage() {
               <label
                 className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 cursor-pointer transition-all ${
                   paymentMethod === 'card'
-                    ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20'
+                    ? 'border-primary-500 bg-primary-50/60 ring-2 ring-primary-500/20'
                     : 'border-slate-200 bg-white hover:bg-slate-50'
                 }`}
               >
@@ -557,7 +582,7 @@ export default function CheckoutPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-sm font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
+              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl text-sm font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
             >
               {isSubmitting ? (
                 <>

@@ -295,7 +295,7 @@ export default function ProductsPage() {
                         disabled={!inStock}
                         className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs ${
                           inStock
-                            ? 'bg-primary-600 hover:bg-primary-700 text-white hover:scale-105 active:scale-95'
+                            ? 'bg-red-600 hover:bg-red-700 text-white hover:scale-105 active:scale-95 shadow-red-600/20'
                             : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         }`}
                         title="Buy Now and proceed directly to checkout"

@@ -16,7 +16,16 @@ export default function InventoryLayout() {
     <div className="min-h-screen bg-surface-50">
       <header className="bg-white border-b border-surface-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <span className="font-display font-bold text-slate-900">📦 Inventory Manager</span>
+          <span className="font-display font-bold text-slate-900 flex items-center gap-2">
+            <img
+              src="/logo.png"
+              alt="VRK Shopping Mall & Supermarket Logo"
+              className="w-7 h-7 vrk-logo-3d shrink-0"
+              width="28"
+              height="28"
+            />
+            <span>VRK Inventory Manager</span>
+          </span>
           <nav className="flex items-center gap-1">
             {navItems.map((item) => (
               <Link key={item.path} to={item.path}

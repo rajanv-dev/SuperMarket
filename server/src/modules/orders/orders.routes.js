@@ -2,6 +2,8 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { supabaseServer } = require('../../config/supabase');
 const { sendSuccess, sendError } = require('../../utils/response');
+const { sendOrderConfirmationWebhook } = require('../../services/n8nWebhookService');
+const logger = require('../../utils/logger');
 
 const router = express.Router();
 
@@ -106,6 +108,7 @@ router.post('/', async (req, res) => {
       deliveryNotes,
       paymentMethod = 'cod', // 'cod' | 'card' | 'upi'
       notes,
+      whatsappOptIn = true,
     } = req.body;
 
     const email = (authUser?.email || customerEmail || '').trim().toLowerCase();
@@ -216,7 +219,12 @@ router.post('/', async (req, res) => {
     ].filter(Boolean).join(', ');
 
     const finalAddress = deliveryAddress || formattedAddress;
+    const isOptedIn = whatsappOptIn !== false && whatsappOptIn !== 'false';
+    const optInTag = isOptedIn ? '[WhatsApp Opt-in: Yes]' : '[WhatsApp Opt-in: No]';
     const finalDeliveryNotes = deliveryNotes || notes;
+    const combinedNotes = finalDeliveryNotes
+      ? `${finalDeliveryNotes} | ${optInTag} | Ship to: ${finalAddress}`
+      : `${optInTag} | Ship to: ${finalAddress}`;
 
     // ── Insert into public.orders ───────────────────────────────────────────
     const { data: newOrder, error: oErr } = await supabaseServer
@@ -246,7 +254,7 @@ router.post('/', async (req, res) => {
           latitude: latitude !== undefined && latitude !== null && !isNaN(Number(latitude)) ? Number(latitude) : null,
           longitude: longitude !== undefined && longitude !== null && !isNaN(Number(longitude)) ? Number(longitude) : null,
           delivery_notes: finalDeliveryNotes || null,
-          notes: finalDeliveryNotes ? `${finalDeliveryNotes} | Ship to: ${finalAddress}` : `Ship to: ${finalAddress}`,
+          notes: combinedNotes,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -284,6 +292,15 @@ router.post('/', async (req, res) => {
         .eq('id', update.id);
     }
 
+    // ── Dispatch n8n WhatsApp Order Confirmation Webhook (only when opted-in) ──
+    if (isOptedIn) {
+      sendOrderConfirmationWebhook(newOrder, itemsToInsert).catch((webhookErr) => {
+        logger.error(`Unhandled n8n order webhook error: ${webhookErr.message}`);
+      });
+    } else {
+      logger.info(`Customer opted out of WhatsApp notification for order ${newOrder.order_number}`);
+    }
+
     return sendSuccess(res, {
       status: 201,
       message: 'Order placed successfully',
@@ -295,6 +312,7 @@ router.post('/', async (req, res) => {
         status: newOrder.status,
         itemsCount: itemsToInsert.length,
         createdAt: newOrder.created_at,
+        whatsappOptIn: isOptedIn,
       },
     });
   } catch (err) {

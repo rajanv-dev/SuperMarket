@@ -122,10 +122,17 @@ export default function AdminLoginPage() {
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4">
         {/* Brand Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary-600 to-emerald-500 text-white shadow-lg shadow-primary-500/25 mb-3">
-            <Shield className="w-7 h-7" />
-          </div>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <Link to="/" className="inline-block group mb-3" aria-label="Customer Storefront">
+            <img
+              src="/logo.png"
+              alt="VRK Shopping Mall & Supermarket Logo"
+              className="w-16 h-16 vrk-logo-3d mx-auto drop-shadow-xl"
+              width="64"
+              height="64"
+              loading="eager"
+            />
+          </Link>
           <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-white tracking-tight">
             VRK Supermarket Admin Portal
           </h1>
@@ -207,7 +214,7 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={isSubmitting || isGoogleLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-500 hover:to-emerald-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-primary-600/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-blue-700 via-primary-600 to-blue-600 hover:from-blue-600 hover:to-primary-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-900/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {isSubmitting ? (
                 <>
