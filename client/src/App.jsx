@@ -39,7 +39,9 @@ import AdminInventory from './pages/admin/AdminInventory';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminAttendance from './pages/admin/AdminAttendance';
+import AdminStaff from './pages/admin/AdminStaff';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
+import QRScannerPage from './pages/scanner/QRScannerPage';
 
 // ── Cashier pages ─────────────────────────────────────────────────────────────
 import POSTerminal from './pages/cashier/POSTerminal';
@@ -261,9 +263,17 @@ export default function App() {
           <Route path="reports" element={<AdminAnalytics />} />
           <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="users" element={<AdminUsers />} />
+          <Route path="staff" element={<AdminStaff />} />
           <Route path="attendance" element={<AdminAttendance />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
+
+        {/* ── Attendance QR Camera Scanner (/scan) ─────────────────────────── */}
+        <Route path="scan" element={
+          <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.CASHIER, ROLES.INVENTORY_MANAGER]}>
+            <QRScannerPage />
+          </ProtectedRoute>
+        } />
 
         {/* ── Cashier / POS ────────────────────────────────────────────────── */}
         <Route path="pos" element={

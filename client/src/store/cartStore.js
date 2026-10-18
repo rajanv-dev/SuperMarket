@@ -11,6 +11,47 @@ const useCartStore = create(
       items: [], // Array of { product: { id, name, price, stock_quantity, image_url, category, sku }, qty: number }
       isLoading: false,
       coupon: null, // { code: string, discountPercent: number, discountAmount: number }
+      buyNowItem: null, // Single { product, qty } for immediate direct checkout
+
+      // ── Buy Now Setup ─────────────────────────────────────────────────────
+      setBuyNowItem: (product, qty = 1) => {
+        if (!product || !product.id) {
+          return { success: false, error: 'Invalid product' };
+        }
+        const maxStock = Number(product.stock_quantity ?? 999);
+        if (maxStock <= 0) {
+          return { success: false, error: 'Product is currently out of stock' };
+        }
+        const validQty = Math.min(maxStock, Math.max(1, parseInt(qty, 10) || 1));
+        const item = {
+          product: {
+            id: product.id,
+            name: product.name,
+            price: Number(product.price) || 0,
+            stock_quantity: maxStock,
+            image_url: product.image_url,
+            category: product.category,
+            sku: product.sku,
+            barcode: product.barcode,
+          },
+          qty: validQty,
+        };
+        set({ buyNowItem: item });
+        return { success: true, item };
+      },
+
+      updateBuyNowQty: (desiredQty) => {
+        const current = get().buyNowItem;
+        if (!current) return { success: false, error: 'No item selected' };
+        const maxStock = Number(current.product?.stock_quantity ?? 999);
+        const qtyNum = Math.max(1, Math.min(maxStock, parseInt(desiredQty, 10) || 1));
+        set({ buyNowItem: { ...current, qty: qtyNum } });
+        return { success: true, qty: qtyNum };
+      },
+
+      clearBuyNowItem: () => {
+        set({ buyNowItem: null });
+      },
 
       // ── Add Item to Cart ──────────────────────────────────────────────────
       addItem: async (product, qty = 1) => {
@@ -252,7 +293,7 @@ const useCartStore = create(
     }),
     {
       name: 'super-cart',
-      partialize: (state) => ({ items: state.items, coupon: state.coupon }),
+      partialize: (state) => ({ items: state.items, coupon: state.coupon, buyNowItem: state.buyNowItem }),
     }
   )
 );

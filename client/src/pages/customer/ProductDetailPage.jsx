@@ -12,6 +12,7 @@ import {
   Check,
   AlertCircle,
   Package,
+  Zap,
 } from 'lucide-react';
 import { productService } from '../../services';
 import useCartStore from '../../store/cartStore';
@@ -21,7 +22,7 @@ import toast from 'react-hot-toast';
 export default function ProductDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addItem } = useCartStore();
+  const { addItem, setBuyNowItem } = useCartStore();
 
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
@@ -119,14 +120,14 @@ export default function ProductDetailPage() {
     }
   };
 
-  const handleBuyNow = async () => {
+  const handleBuyNow = () => {
     if (!inStock) {
       toast.error('Product is out of stock');
       return;
     }
-    const res = await addItem(product, quantity);
+    const res = setBuyNowItem(product, quantity);
     if (res.success) {
-      navigate('/checkout');
+      navigate('/checkout?mode=buynow');
     } else {
       toast.error(res.error || 'Failed to process Buy Now');
     }
@@ -306,13 +307,14 @@ export default function ProductDetailPage() {
               <button
                 onClick={handleBuyNow}
                 disabled={!inStock}
-                className={`w-full sm:flex-1 py-3.5 px-6 rounded-2xl text-sm font-bold shadow-md transition-all ${
+                className={`w-full sm:flex-1 py-3.5 px-6 rounded-2xl text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 ${
                   inStock
-                    ? 'bg-slate-900 hover:bg-slate-800 text-white hover:scale-[1.02] active:scale-[0.98]'
+                    ? 'bg-primary-600 hover:bg-primary-700 text-white hover:scale-[1.02] active:scale-[0.98]'
                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 }`}
               >
-                Buy Now
+                <Zap className="w-4 h-4 fill-current" />
+                <span>Buy Now</span>
               </button>
             </div>
           </div>

@@ -39,6 +39,7 @@ export const orderService = {
   getById: (id) => api.get(`/orders/${id}`),
   cancel: (id, reason) => api.post(`/orders/${id}/cancel`, { reason }),
   reorder: (id) => api.post(`/orders/${id}/reorder`),
+  updateStatus: (id, data) => api.patch(`/orders/${id}/status`, data),
 };
 
 export const paymentService = {

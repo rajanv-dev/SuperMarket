@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ShoppingBag, ArrowRight, ShieldCheck, Truck, Clock, Sparkles } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ShoppingBag, ArrowRight, ShieldCheck, Truck, Clock, Sparkles, ShoppingCart, Zap, Check } from 'lucide-react';
 import { productService } from '../../services';
+import useCartStore from '../../store/cartStore';
+import toast from 'react-hot-toast';
 
 export default function HomePage() {
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const navigate = useNavigate();
+  const { addItem, setBuyNowItem } = useCartStore();
+  const [addedMap, setAddedMap] = useState({});
 
   useEffect(() => {
     productService
@@ -14,6 +20,41 @@ export default function HomePage() {
       .catch((err) => console.warn('Could not fetch homepage products:', err))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleAddToCart = async (product) => {
+    const maxStock = Number(product.stock_quantity ?? 0);
+    if (maxStock <= 0) {
+      toast.error(`${product.name} is currently out of stock`);
+      return;
+    }
+
+    setAddedMap((prev) => ({ ...prev, [product.id]: true }));
+    const result = await addItem(product, 1);
+    if (result.success) {
+      toast.success(`Added ${product.name} to cart`);
+    } else {
+      toast.error(result.error || 'Could not add to cart');
+    }
+
+    setTimeout(() => {
+      setAddedMap((prev) => ({ ...prev, [product.id]: false }));
+    }, 1200);
+  };
+
+  const handleBuyNow = (product) => {
+    const maxStock = Number(product.stock_quantity ?? 0);
+    if (maxStock <= 0) {
+      toast.error(`${product.name} is currently out of stock`);
+      return;
+    }
+
+    const result = setBuyNowItem(product, 1);
+    if (result.success) {
+      navigate('/checkout?mode=buynow');
+    } else {
+      toast.error(result.error || 'Could not initiate checkout');
+    }
+  };
 
   return (
     <div className="space-y-12 pb-16">
@@ -99,14 +140,29 @@ export default function HomePage() {
                   <h3 className="text-sm font-bold text-slate-900 line-clamp-1 mt-0.5">{p.name}</h3>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-base font-black text-slate-900">₹{Number(p.price).toFixed(2)}</span>
-                  <Link
-                    to="/products"
-                    className="p-2 rounded-xl bg-primary-50 text-primary-600 hover:bg-primary-600 hover:text-white transition-colors"
-                  >
-                    <ShoppingBag className="w-4 h-4" />
-                  </Link>
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-1">
+                  <span className="text-sm font-black text-slate-900">₹{Number(p.price).toFixed(2)}</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleAddToCart(p)}
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                      title="Add to Cart"
+                    >
+                      {addedMap[p.id] ? (
+                        <Check className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <ShoppingCart className="w-4 h-4 text-slate-600" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleBuyNow(p)}
+                      className="px-2.5 py-1.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+                      title="Buy Now"
+                    >
+                      <Zap className="w-3 h-3 fill-current" />
+                      <span>Buy</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

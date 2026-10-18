@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
-import { Search, Package, AlertCircle, RefreshCw, ShoppingCart, Tag, Check } from 'lucide-react';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { Search, Package, AlertCircle, RefreshCw, ShoppingCart, Tag, Check, Zap } from 'lucide-react';
 import { productService } from '../../services';
 import useCartStore from '../../store/cartStore';
 import toast from 'react-hot-toast';
@@ -18,7 +18,8 @@ export default function ProductsPage() {
   const [sortBy, setSortBy] = useState('popular'); // 'popular' | 'price_asc' | 'price_desc' | 'name_asc'
   const [addedMap, setAddedMap] = useState({});
 
-  const { addItem } = useCartStore();
+  const navigate = useNavigate();
+  const { addItem, setBuyNowItem } = useCartStore();
 
   const loadProducts = async () => {
     try {
@@ -64,6 +65,21 @@ export default function ProductsPage() {
     setTimeout(() => {
       setAddedMap((prev) => ({ ...prev, [product.id]: false }));
     }, 1200);
+  };
+
+  const handleBuyNow = (product) => {
+    const maxStock = Number(product.stock_quantity ?? 0);
+    if (maxStock <= 0) {
+      toast.error(`${product.name} is currently out of stock`);
+      return;
+    }
+
+    const result = setBuyNowItem(product, 1);
+    if (result.success) {
+      navigate('/checkout?mode=buynow');
+    } else {
+      toast.error(result.error || 'Could not initiate checkout');
+    }
   };
 
   // Derive unique categories from products
@@ -248,27 +264,46 @@ export default function ProductsPage() {
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => handleAddToCart(product)}
-                      disabled={!inStock}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                        isAdded
-                          ? 'bg-emerald-600 text-white'
-                          : inStock
-                          ? 'bg-primary-600 hover:bg-primary-700 text-white shadow-xs hover:scale-105 active:scale-95'
-                          : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                      }`}
-                    >
-                      {isAdded ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" /> Added
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingCart className="w-3.5 h-3.5" /> Add
-                        </>
-                      )}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleAddToCart(product)}
+                        disabled={!inStock}
+                        className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                          isAdded
+                            ? 'bg-emerald-600 text-white'
+                            : inStock
+                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        }`}
+                        title="Add item to Cart"
+                      >
+                        {isAdded ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-white" />
+                            <span className="hidden sm:inline">Added</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingCart className="w-3.5 h-3.5 text-slate-600" />
+                            <span className="hidden sm:inline">Add</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => handleBuyNow(product)}
+                        disabled={!inStock}
+                        className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs ${
+                          inStock
+                            ? 'bg-primary-600 hover:bg-primary-700 text-white hover:scale-105 active:scale-95'
+                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        }`}
+                        title="Buy Now and proceed directly to checkout"
+                      >
+                        <Zap className="w-3.5 h-3.5 fill-current" />
+                        <span>Buy Now</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

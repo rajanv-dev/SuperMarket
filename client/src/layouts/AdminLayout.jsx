@@ -18,6 +18,8 @@ import {
   Layers,
   UserCheck,
   ClipboardCheck,
+  Camera,
+  QrCode,
 } from 'lucide-react';
 import { useState } from 'react';
 import useAuthStore from '../store/authStore';
@@ -31,6 +33,7 @@ const navItems = [
   { path: '/admin/inventory', label: 'Inventory & Batches', icon: Warehouse },
   { path: '/admin/categories', label: 'Categories', icon: Layers },
   { path: '/admin/orders', label: 'Orders & Sales', icon: ShoppingBag },
+  { path: '/admin/staff', label: 'Staff Management', icon: Users },
   { path: '/admin/attendance', label: 'Staff Attendance', icon: ClipboardCheck },
   { path: '/admin/customers', label: 'Customers', icon: UserCheck },
   { path: '/admin/reports', label: 'Reports', icon: BarChart3 },
@@ -123,6 +126,13 @@ export default function AdminLayout() {
         <div className="pt-4 px-3 pb-2 text-[11px] font-bold tracking-wider text-slate-500 uppercase">
           Operations
         </div>
+        <Link
+          to="/scan"
+          className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-sky-400 bg-sky-950/30 border border-sky-900/50 hover:bg-sky-900/40 hover:text-sky-300 transition-all"
+        >
+          <Camera className="w-4 h-4" />
+          <span>Attendance Scanner (/scan)</span>
+        </Link>
         <Link
           to="/pos"
           className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-emerald-400 bg-emerald-950/30 border border-emerald-900/50 hover:bg-emerald-900/40 hover:text-emerald-300 transition-all"

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   ShieldCheck,
   Truck,
@@ -16,26 +16,55 @@ import {
   Phone,
   Mail,
   Lock,
+  Plus,
+  Minus,
+  Zap,
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import useCartStore from '../../store/cartStore';
 import { orderService } from '../../services';
+import DeliveryLocationMap from '../../components/checkout/DeliveryLocationMap';
 import toast from 'react-hot-toast';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
-  const { items, clearCart, coupon } = useCartStore();
+  const [searchParams] = useSearchParams();
+  const isBuyNow = searchParams.get('mode') === 'buynow';
 
+  const { user } = useAuthStore();
+  const {
+    items,
+    clearCart,
+    coupon,
+    buyNowItem,
+    updateBuyNowQty,
+    clearBuyNowItem,
+  } = useCartStore();
+
+  // Active items for this checkout session
+  const checkoutItems = isBuyNow && buyNowItem ? [buyNowItem] : items;
+
+  // Contact info
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
     phone: '',
-    address: '',
-    city: '',
-    pincode: '',
     notes: '',
   });
+
+  // Delivery address & Google Maps state
+  const [deliveryData, setDeliveryData] = useState({
+    formattedAddress: '',
+    houseNo: '',
+    street: '',
+    area: '',
+    city: '',
+    postalCode: '',
+    deliveryNotes: '',
+    latitude: null,
+    longitude: null,
+  });
+  const [isAddressConfirmed, setIsAddressConfirmed] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState('cod'); // 'cod' | 'upi' | 'card'
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,14 +81,19 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
-  // If cart is empty, redirect to /cart
+  // If no items in checkout session, redirect appropriately
   useEffect(() => {
-    if (items.length === 0) {
-      navigate('/cart');
+    if (checkoutItems.length === 0) {
+      if (isBuyNow) {
+        navigate('/products');
+      } else {
+        navigate('/cart');
+      }
     }
-  }, [items, navigate]);
+  }, [checkoutItems, isBuyNow, navigate]);
 
-  const subtotal = items.reduce(
+  // Calculations
+  const subtotal = checkoutItems.reduce(
     (sum, item) => sum + (Number(item.qty) || 0) * (Number(item.product?.price) || 0),
     0
   );
@@ -67,7 +101,7 @@ export default function CheckoutPage() {
   const deliveryFee = subtotal === 0 ? 0 : isFreeDelivery ? 0 : 40;
 
   let discountAmount = 0;
-  if (coupon) {
+  if (!isBuyNow && coupon) {
     if (coupon.discountAmount) discountAmount = coupon.discountAmount;
     else if (coupon.discountPercent) {
       discountAmount = Math.round((subtotal * coupon.discountPercent) / 100);
@@ -76,11 +110,19 @@ export default function CheckoutPage() {
 
   const total = Math.max(0, subtotal - discountAmount + deliveryFee);
 
-  const handleChange = (e) => {
+  const handleContactChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleDeliverySelect = (data) => {
+    setDeliveryData((prev) => ({
+      ...prev,
+      ...data,
+    }));
+  };
+
+  // Submit Order
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
     setError(null);
@@ -94,11 +136,21 @@ export default function CheckoutPage() {
       return;
     }
     if (!formData.phone.trim()) {
-      toast.error('Please enter your 10-digit phone number');
+      toast.error('Please enter your phone number');
       return;
     }
-    if (!formData.address.trim() || !formData.city.trim()) {
-      toast.error('Please enter your complete delivery address and city');
+
+    // Require address confirmation or at least minimal address fields
+    if (!deliveryData.houseNo && !deliveryData.formattedAddress) {
+      toast.error('Please specify your Flat / House number and complete address');
+      return;
+    }
+    if (!deliveryData.city) {
+      toast.error('Please specify your delivery City');
+      return;
+    }
+    if (!deliveryData.postalCode) {
+      toast.error('Please specify your PIN code');
       return;
     }
 
@@ -106,7 +158,7 @@ export default function CheckoutPage() {
       setIsSubmitting(true);
 
       const orderPayload = {
-        items: items.map((i) => ({
+        items: checkoutItems.map((i) => ({
           productId: i.product?.id,
           qty: i.qty,
           price: i.product?.price,
@@ -114,17 +166,30 @@ export default function CheckoutPage() {
         customerName: formData.name.trim(),
         customerEmail: formData.email.trim(),
         customerPhone: formData.phone.trim(),
-        deliveryAddress: formData.address.trim(),
-        city: formData.city.trim(),
-        pincode: formData.pincode.trim(),
+        deliveryAddress: deliveryData.formattedAddress,
+        houseNo: deliveryData.houseNo,
+        street: deliveryData.street,
+        area: deliveryData.area,
+        city: deliveryData.city,
+        pincode: deliveryData.postalCode,
+        postalCode: deliveryData.postalCode,
+        latitude: deliveryData.latitude,
+        longitude: deliveryData.longitude,
+        deliveryNotes: deliveryData.deliveryNotes || formData.notes,
         paymentMethod,
-        notes: formData.notes.trim() || undefined,
+        notes: deliveryData.deliveryNotes || formData.notes || undefined,
       };
 
       const res = await orderService.create(orderPayload);
       const created = res.data?.data;
 
-      clearCart();
+      // Clear the respective checkout source
+      if (isBuyNow) {
+        clearBuyNowItem();
+      } else {
+        clearCart();
+      }
+
       toast.success(`Order placed successfully! Ref: ${created.orderNumber}`);
 
       if (created.orderId) {
@@ -144,22 +209,31 @@ export default function CheckoutPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* ── Header ───────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+      {/* ── Top Header ───────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Checkout & Delivery
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              Checkout & Delivery
+            </h1>
+            {isBuyNow && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                <Zap className="w-3.5 h-3.5 fill-amber-500 text-amber-600" />
+                Buy Now Mode
+              </span>
+            )}
+          </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Enter your delivery address and choose your preferred payment option
+            Pin your delivery location on Google Maps and select payment to complete your order.
           </p>
         </div>
 
         <Link
-          to="/cart"
+          to={isBuyNow ? '/products' : '/cart'}
           className="text-xs font-bold text-slate-600 hover:text-primary-600 flex items-center gap-1.5"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Cart
+          <ArrowLeft className="w-4 h-4" />
+          {isBuyNow ? 'Back to Catalog' : 'Back to Cart'}
         </Link>
       </div>
 
@@ -170,22 +244,22 @@ export default function CheckoutPage() {
         </div>
       )}
 
-      {/* ── Main Two-Column Layout ────────────────────────────────────────────── */}
+      {/* ── Main Layout ─────────────────────────────────────────────────────── */}
       <form onSubmit={handleSubmitOrder} className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* Left 2 Columns: Address & Payment Info */}
+        {/* Left 2 Columns: Contact, Maps Address, & Payment */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Step 1: Contact & Delivery Address */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+          {/* 1. Contact Information */}
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 space-y-4">
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
               <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
                 1
               </div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-emerald-600" /> Delivery Address
+                <User className="w-4 h-4 text-emerald-600" /> Contact Details
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Full Name *</label>
                 <div className="relative">
@@ -195,9 +269,25 @@ export default function CheckoutPage() {
                     name="name"
                     required
                     value={formData.name}
-                    onChange={handleChange}
-                    placeholder="e.g. Rahul Sharma"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    onChange={handleContactChange}
+                    placeholder="e.g. Arun Kumar"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Email Address *</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    name="email"
+                    required
+                    value={formData.email}
+                    onChange={handleContactChange}
+                    placeholder="e.g. arun@example.com"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
               </div>
@@ -211,91 +301,48 @@ export default function CheckoutPage() {
                     name="phone"
                     required
                     value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="e.g. 9876543210"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    onChange={handleContactChange}
+                    placeholder="e.g. +91 98765 43210"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="text-xs font-bold text-slate-700 block mb-1">Email Address *</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    name="email"
-                    required
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="e.g. rahul@example.com"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Street Address & House / Flat # *
-                </label>
-                <textarea
-                  name="address"
-                  required
-                  rows="2"
-                  value={formData.address}
-                  onChange={handleChange}
-                  placeholder="e.g. Flat 302, Green Valley Apartments, MG Road"
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">City / Town *</label>
-                <input
-                  type="text"
-                  name="city"
-                  required
-                  value={formData.city}
-                  onChange={handleChange}
-                  placeholder="e.g. Bangalore"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Postal PIN Code *</label>
-                <input
-                  type="text"
-                  name="pincode"
-                  required
-                  value={formData.pincode}
-                  onChange={handleChange}
-                  placeholder="e.g. 560001"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Delivery Notes / Landmarks (Optional)
-                </label>
-                <input
-                  type="text"
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleChange}
-                  placeholder="e.g. Near HDFC Bank ATM, please call on arrival"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
               </div>
             </div>
           </div>
 
-          {/* Step 2: Payment Method */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+          {/* 2. Google Maps Delivery Location Selection */}
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
+                  2
+                </div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-emerald-600" /> Delivery Location & Map
+                </h2>
+              </div>
+
+              {isAddressConfirmed && (
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
+                  <CheckCircle2 className="w-4 h-4" /> Location Confirmed
+                </span>
+              )}
+            </div>
+
+            <DeliveryLocationMap
+              initialCity={deliveryData.city}
+              initialPincode={deliveryData.postalCode}
+              onAddressSelect={handleDeliverySelect}
+              isConfirmed={isAddressConfirmed}
+              onConfirmChange={setIsAddressConfirmed}
+            />
+          </div>
+
+          {/* 3. Payment Method */}
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 space-y-4">
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
               <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
-                2
+                3
               </div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-emerald-600" /> Payment Option
@@ -303,11 +350,11 @@ export default function CheckoutPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Cash on Delivery */}
+              {/* Cash On Delivery */}
               <label
-                className={`p-4 rounded-xl border flex flex-col justify-between gap-3 cursor-pointer transition-all ${
+                className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 cursor-pointer transition-all ${
                   paymentMethod === 'cod'
-                    ? 'border-emerald-500 bg-emerald-50/40 ring-2 ring-emerald-500/20'
+                    ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20'
                     : 'border-slate-200 bg-white hover:bg-slate-50'
                 }`}
               >
@@ -324,15 +371,15 @@ export default function CheckoutPage() {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900">Cash on Delivery</p>
-                  <p className="text-[11px] text-slate-500">Pay when order arrives</p>
+                  <p className="text-[11px] text-slate-500">Pay cash or UPI at delivery</p>
                 </div>
               </label>
 
-              {/* UPI (Simulated / Instant) */}
+              {/* UPI */}
               <label
-                className={`p-4 rounded-xl border flex flex-col justify-between gap-3 cursor-pointer transition-all ${
+                className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 cursor-pointer transition-all ${
                   paymentMethod === 'upi'
-                    ? 'border-emerald-500 bg-emerald-50/40 ring-2 ring-emerald-500/20'
+                    ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20'
                     : 'border-slate-200 bg-white hover:bg-slate-50'
                 }`}
               >
@@ -353,11 +400,11 @@ export default function CheckoutPage() {
                 </div>
               </label>
 
-              {/* Card Payment (Simulated) */}
+              {/* Card */}
               <label
-                className={`p-4 rounded-xl border flex flex-col justify-between gap-3 cursor-pointer transition-all ${
+                className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 cursor-pointer transition-all ${
                   paymentMethod === 'card'
-                    ? 'border-emerald-500 bg-emerald-50/40 ring-2 ring-emerald-500/20'
+                    ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20'
                     : 'border-slate-200 bg-white hover:bg-slate-50'
                 }`}
               >
@@ -381,34 +428,100 @@ export default function CheckoutPage() {
 
             <p className="text-[11px] text-slate-400 flex items-center gap-1.5 pt-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Simulated e-commerce checkout. No real money or card numbers are collected.</span>
+              <span>Secure checkout. Real-time inventory deduction and order tracking.</span>
             </p>
           </div>
         </div>
 
-        {/* Right Column: Order Review & Confirmation */}
+        {/* Right Column: Order Review, Quantity Adjuster & Summary */}
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-5 sticky top-24">
-            <h2 className="text-base font-extrabold text-slate-900 tracking-tight pb-3 border-b border-slate-100">
-              Order Review ({items.length} items)
-            </h2>
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 space-y-5 sticky top-24">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
+                Order Review ({checkoutItems.length} {checkoutItems.length === 1 ? 'item' : 'items'})
+              </h2>
+              {isBuyNow && (
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  Instant Checkout
+                </span>
+              )}
+            </div>
 
-            {/* Items Mini-List */}
-            <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 space-y-2 pr-1 scrollbar-thin">
-              {items.map((item) => (
-                <div key={item.product?.id} className="pt-2 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2.5 truncate max-w-48">
-                    <span className="font-bold text-slate-900">{item.qty}x</span>
-                    <span className="truncate text-slate-700">{item.product?.name}</span>
+            {/* Items List with Quantity Controls for Buy Now */}
+            <div className="space-y-3">
+              {checkoutItems.map((item) => (
+                <div
+                  key={item.product?.id}
+                  className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-2"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-900 truncate max-w-[180px]">
+                      {item.product?.name}
+                    </span>
+                    <span className="font-mono font-bold text-slate-900">
+                      ₹{(Number(item.product?.price || 0) * item.qty).toFixed(2)}
+                    </span>
                   </div>
-                  <span className="font-bold text-slate-900 font-mono">
-                    ₹{(Number(item.product?.price || 0) * item.qty).toFixed(2)}
-                  </span>
+
+                  {/* Quantity selector */}
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center border border-slate-200 rounded-xl bg-white p-0.5 shadow-2xs">
+                      {isBuyNow ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => updateBuyNowQty(item.qty - 1)}
+                            disabled={item.qty <= 1}
+                            className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 disabled:opacity-30"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-8 text-center text-xs font-bold text-slate-800 font-mono">
+                            {item.qty}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateBuyNowQty(item.qty + 1)}
+                            disabled={item.qty >= Number(item.product?.stock_quantity ?? 999)}
+                            className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 disabled:opacity-30"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs font-semibold text-slate-600">
+                          Qty: {item.qty}
+                        </span>
+                      )}
+                    </div>
+
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      @ ₹{Number(item.product?.price || 0).toFixed(2)}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Calculations */}
+            {/* Confirmed Delivery Location Badge in Review */}
+            {deliveryData.formattedAddress && (
+              <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-[11px] uppercase tracking-wider">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Delivery Destination</span>
+                </div>
+                <p className="text-slate-800 font-medium line-clamp-2">
+                  {deliveryData.formattedAddress}
+                </p>
+                {deliveryData.latitude && deliveryData.longitude && (
+                  <p className="text-[10px] text-emerald-700 font-mono">
+                    GPS: {deliveryData.latitude.toFixed(5)}, {deliveryData.longitude.toFixed(5)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Calculations Breakdown */}
             <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
               <div className="flex items-center justify-between text-slate-600">
                 <span>Subtotal</span>
@@ -444,7 +557,7 @@ export default function CheckoutPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-sm font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
             >
               {isSubmitting ? (
                 <>
