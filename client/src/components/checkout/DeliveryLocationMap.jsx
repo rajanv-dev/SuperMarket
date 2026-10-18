@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader } from '@googlemaps/js-api-loader';
 import {
   MapPin,
   Search,
@@ -13,6 +12,7 @@ import {
   Compass,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { loadGoogleMapsLibraries } from '../../utils/googleMapsLoader';
 
 export default function DeliveryLocationMap({
   initialAddress = '',
@@ -23,6 +23,12 @@ export default function DeliveryLocationMap({
   onConfirmChange,
 }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const isKeyConfigured = Boolean(
+    apiKey &&
+    apiKey !== 'your_google_maps_api_key_here' &&
+    typeof apiKey === 'string' &&
+    apiKey.trim() !== ''
+  );
 
   // Address fields state
   const [houseNo, setHouseNo] = useState('');
@@ -31,11 +37,12 @@ export default function DeliveryLocationMap({
   const [city, setCity] = useState(initialCity || '');
   const [postalCode, setPostalCode] = useState(initialPincode || '');
   const [deliveryNotes, setDeliveryNotes] = useState('');
-  const [coordinates, setCoordinates] = useState({ lat: 17.385044, lng: 78.486671 }); // Default to store region
+  const [coordinates, setCoordinates] = useState({ lat: 17.385044, lng: 78.486671 }); // Default Hyderabad / store region
   const [hasMarkerMoved, setHasMarkerMoved] = useState(false);
 
   // Map & API states
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [autocompleteQuery, setAutocompleteQuery] = useState('');
@@ -88,65 +95,78 @@ export default function DeliveryLocationMap({
   // Reverse Geocoding helper
   const reverseGeocode = (lat, lng) => {
     if (!geocoderRef.current) return;
-    geocoderRef.current.geocode({ location: { lat, lng } }, (results, status) => {
-      if (status === 'OK' && results?.[0]) {
-        const place = results[0];
-        let detectedStreet = '';
-        let detectedArea = '';
-        let detectedCity = '';
-        let detectedPin = '';
+    try {
+      geocoderRef.current.geocode({ location: { lat, lng } }, (results, status) => {
+        if (status === 'OK' && results?.[0]) {
+          const place = results[0];
+          let detectedStreet = '';
+          let detectedArea = '';
+          let detectedCity = '';
+          let detectedPin = '';
 
-        place.address_components.forEach((c) => {
-          if (c.types.includes('route') || c.types.includes('street_address')) {
-            detectedStreet = c.long_name;
-          }
-          if (c.types.includes('sublocality') || c.types.includes('neighborhood')) {
-            detectedArea = c.long_name;
-          }
-          if (c.types.includes('locality')) {
-            detectedCity = c.long_name;
-          }
-          if (c.types.includes('postal_code')) {
-            detectedPin = c.long_name;
-          }
-        });
+          (place.address_components || []).forEach((c) => {
+            if (c.types.includes('route') || c.types.includes('street_address')) {
+              detectedStreet = c.long_name;
+            }
+            if (c.types.includes('sublocality') || c.types.includes('neighborhood')) {
+              detectedArea = c.long_name;
+            }
+            if (c.types.includes('locality')) {
+              detectedCity = c.long_name;
+            }
+            if (c.types.includes('postal_code')) {
+              detectedPin = c.long_name;
+            }
+          });
 
-        if (detectedStreet) setStreet(detectedStreet);
-        if (detectedArea) setArea(detectedArea);
-        if (detectedCity) setCity(detectedCity);
-        if (detectedPin) setPostalCode(detectedPin);
+          if (detectedStreet) setStreet(detectedStreet);
+          if (detectedArea) setArea(detectedArea);
+          if (detectedCity) setCity(detectedCity);
+          if (detectedPin) setPostalCode(detectedPin);
 
-        notifyParent({
-          street: detectedStreet || street,
-          area: detectedArea || area,
-          city: detectedCity || city,
-          postalCode: detectedPin || postalCode,
-          lat,
-          lng,
-        });
-      }
-    });
+          notifyParent({
+            street: detectedStreet || street,
+            area: detectedArea || area,
+            city: detectedCity || city,
+            postalCode: detectedPin || postalCode,
+            lat,
+            lng,
+          });
+        }
+      });
+    } catch (err) {
+      console.warn('Reverse geocode error:', err);
+    }
   };
 
-  // Initialize Google Maps
+  // Initialize Google Maps using the modern functional API
   useEffect(() => {
-    if (!apiKey || apiKey === 'your_google_maps_api_key_here') {
+    let isMounted = true;
+    let markerInstance = null;
+    let placeChangeListener = null;
+    const prevAuthFailure = window.gm_authFailure;
+
+    window.gm_authFailure = () => {
+      if (isMounted) {
+        setMapError('Google Maps API key could not be authenticated (check domain/referrer restrictions in Google Cloud Console). Please enter your address manually.');
+        setMapLoading(false);
+      }
+      if (typeof prevAuthFailure === 'function') {
+        prevAuthFailure();
+      }
+    };
+
+    if (!isKeyConfigured) {
+      setMapLoading(false);
       return;
     }
 
-    const loader = new Loader({
-      apiKey,
-      version: 'weekly',
-      libraries: ['places'],
-    });
+    setMapLoading(true);
+    setMapError(null);
 
-    loader
-      .importLibrary('maps')
-      .then(async ({ Map }) => {
-        const { Geocoder } = await loader.importLibrary('geocoding');
-        const { Autocomplete } = await loader.importLibrary('places');
-
-        if (!mapContainerRef.current) return;
+    loadGoogleMapsLibraries(apiKey)
+      .then(({ Map, Geocoder, Autocomplete, Marker }) => {
+        if (!isMounted || !mapContainerRef.current) return;
 
         geocoderRef.current = new Geocoder();
 
@@ -167,29 +187,36 @@ export default function DeliveryLocationMap({
         mapInstanceRef.current = map;
 
         // Custom delivery marker
-        const marker = new google.maps.Marker({
-          position: coordinates,
-          map,
-          draggable: true,
-          title: 'Drag to adjust your exact delivery entrance',
-          animation: google.maps.Animation.DROP,
-        });
-        markerInstanceRef.current = marker;
+        if (Marker) {
+          const marker = new Marker({
+            position: coordinates,
+            map,
+            draggable: true,
+            title: 'Drag to adjust your exact delivery entrance',
+            animation: window?.google?.maps?.Animation?.DROP,
+          });
+          markerInstance = marker;
+          markerInstanceRef.current = marker;
 
-        // Handle marker dragend
-        marker.addListener('dragend', (e) => {
-          const newLat = e.latLng.lat();
-          const newLng = e.latLng.lng();
-          setCoordinates({ lat: newLat, lng: newLng });
-          setHasMarkerMoved(true);
-          reverseGeocode(newLat, newLng);
-        });
+          // Handle marker dragend
+          marker.addListener('dragend', (e) => {
+            if (!isMounted) return;
+            const newLat = e.latLng.lat();
+            const newLng = e.latLng.lng();
+            setCoordinates({ lat: newLat, lng: newLng });
+            setHasMarkerMoved(true);
+            reverseGeocode(newLat, newLng);
+          });
+        }
 
         // Handle map click / tap to move marker
         map.addListener('click', (e) => {
+          if (!isMounted) return;
           const newLat = e.latLng.lat();
           const newLng = e.latLng.lng();
-          marker.setPosition(e.latLng);
+          if (markerInstanceRef.current) {
+            markerInstanceRef.current.setPosition(e.latLng);
+          }
           setCoordinates({ lat: newLat, lng: newLng });
           setHasMarkerMoved(true);
           reverseGeocode(newLat, newLng);
@@ -202,7 +229,8 @@ export default function DeliveryLocationMap({
             componentRestrictions: { country: 'in' },
           });
 
-          autocomplete.addListener('place_changed', () => {
+          placeChangeListener = autocomplete.addListener('place_changed', () => {
+            if (!isMounted) return;
             const place = autocomplete.getPlace();
             if (!place.geometry || !place.geometry.location) {
               toast.error('Location details not found for this address. Please click on the map.');
@@ -214,7 +242,9 @@ export default function DeliveryLocationMap({
 
             map.setCenter(place.geometry.location);
             map.setZoom(17);
-            marker.setPosition(place.geometry.location);
+            if (markerInstanceRef.current) {
+              markerInstanceRef.current.setPosition(place.geometry.location);
+            }
             setCoordinates({ lat: newLat, lng: newLng });
             setHasMarkerMoved(true);
 
@@ -258,12 +288,26 @@ export default function DeliveryLocationMap({
         }
 
         setMapLoaded(true);
+        setMapLoading(false);
       })
       .catch((err) => {
+        if (!isMounted) return;
         console.warn('Google Maps API load error:', err);
         setMapError('Google Maps could not be loaded. Please enter your address details manually.');
+        setMapLoading(false);
       });
-  }, [apiKey]);
+
+    return () => {
+      isMounted = false;
+      window.gm_authFailure = prevAuthFailure;
+      if (placeChangeListener && window?.google?.maps?.event?.removeListener) {
+        window.google.maps.event.removeListener(placeChangeListener);
+      }
+      if (markerInstance && typeof markerInstance.setMap === 'function') {
+        markerInstance.setMap(null);
+      }
+    };
+  }, [apiKey, isKeyConfigured]);
 
   // Request & locate user's current GPS position
   const handleUseCurrentLocation = () => {
@@ -282,11 +326,12 @@ export default function DeliveryLocationMap({
         setCoordinates(newPos);
         setHasMarkerMoved(true);
 
-        if (mapInstanceRef.current && markerInstanceRef.current) {
-          const latLng = new google.maps.LatLng(lat, lng);
-          mapInstanceRef.current.setCenter(latLng);
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.setCenter(newPos);
           mapInstanceRef.current.setZoom(17);
-          markerInstanceRef.current.setPosition(latLng);
+        }
+        if (markerInstanceRef.current) {
+          markerInstanceRef.current.setPosition(newPos);
         }
 
         reverseGeocode(lat, lng);
@@ -367,8 +412,8 @@ export default function DeliveryLocationMap({
       ) : (
         /* ── Interactive Map & Address Entry View ──────────────────────────── */
         <div className="space-y-4">
-          {/* Google Maps Search Bar & GPS Button (if API key present) */}
-          {apiKey && apiKey !== 'your_google_maps_api_key_here' && !mapError && (
+          {/* Google Maps Search Bar & GPS Button (if API key present and no error) */}
+          {isKeyConfigured && !mapError && (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -401,25 +446,51 @@ export default function DeliveryLocationMap({
               <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-xs h-60 sm:h-72 bg-slate-100">
                 <div ref={mapContainerRef} className="w-full h-full" />
 
+                {mapLoading && (
+                  <div className="absolute inset-0 bg-slate-50/80 backdrop-blur-xs flex items-center justify-center">
+                    <div className="text-center space-y-2">
+                      <div className="w-7 h-7 border-2 border-primary-600/30 border-t-primary-600 rounded-full animate-spin mx-auto" />
+                      <p className="text-xs text-slate-500 font-medium">Loading Google Maps...</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Floating Map Hint */}
-                <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-slate-200 text-[11px] font-semibold text-slate-700 pointer-events-none flex items-center gap-1.5">
-                  <Compass className="w-3.5 h-3.5 text-primary-600" />
-                  Tap map or drag pin to your exact door
-                </div>
+                {mapLoaded && (
+                  <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-slate-200 text-[11px] font-semibold text-slate-700 pointer-events-none flex items-center gap-1.5">
+                    <Compass className="w-3.5 h-3.5 text-primary-600" />
+                    Tap map or drag pin to your exact door
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* Graceful Fallback Notice if no API key or map error */}
-          {(!apiKey || apiKey === 'your_google_maps_api_key_here' || mapError) && (
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs flex items-start gap-2.5">
-              <MapPin className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
+          {/* Notice if no API key */}
+          {!isKeyConfigured && (
+            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+              <MapPin className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-slate-800">
-                  Manual Delivery Address Entry
+                <p className="font-bold text-amber-950">
+                  Interactive Map Not Configured
                 </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Enter your address details below. Hyperlocal supermarket couriers deliver directly to your doorstep.
+                <p className="text-[11px] text-amber-800 mt-0.5">
+                  Google Maps API key is not configured in this environment. Please enter your complete delivery address manually below.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Notice if map error */}
+          {isKeyConfigured && mapError && (
+            <div className="p-3.5 rounded-xl bg-rose-50/80 border border-rose-200 text-rose-900 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-rose-950">
+                  Google Maps Notice
+                </p>
+                <p className="text-[11px] text-rose-800 mt-0.5">
+                  {mapError}
                 </p>
               </div>
             </div>
