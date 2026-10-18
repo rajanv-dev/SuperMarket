@@ -13,6 +13,9 @@ export const getAppOrigin = () => {
   if (typeof window !== 'undefined' && window.location?.origin && window.location.origin !== 'null') {
     return window.location.origin.replace(/\/+$/, '');
   }
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SITE_URL) {
+    return import.meta.env.VITE_SITE_URL.replace(/\/+$/, '');
+  }
   return PRODUCTION_ORIGIN;
 };
 
