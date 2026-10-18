@@ -4,19 +4,12 @@
     "client": {
       "root": "client",
       "framework": "vite"
-    },
-    "server": {
-      "root": "server",
-      "framework": "express",
-      "entrypoint": "src/app.js"
     }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": {
-        "service": "server"
-      }
+      "destination": "https://supermarket-1-dwi6.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",

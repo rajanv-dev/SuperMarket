@@ -161,8 +161,9 @@ router.get('/products', async (req, res) => {
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false });
 
-    if (search.trim()) {
-      const term = `%${search.trim()}%`;
+    const cleanSearch = search.trim().replace(/[,()"]/g, ' ').trim();
+    if (cleanSearch) {
+      const term = `%${cleanSearch}%`;
       query = query.or(`name.ilike.${term},sku.ilike.${term},barcode.ilike.${term}`);
     }
     if (category && category !== 'all') {
@@ -504,8 +505,9 @@ router.get('/inventory', async (req, res) => {
       .select('*, products(id, name, sku, category, price, stock_quantity)')
       .order('expiry_date', { ascending: true });
 
-    if (search.trim()) {
-      const term = `%${search.trim()}%`;
+    const cleanSearch = search.trim().replace(/[,()"]/g, ' ').trim();
+    if (cleanSearch) {
+      const term = `%${cleanSearch}%`;
       query = query.or(`batch_number.ilike.${term},barcode.ilike.${term}`);
     }
 
@@ -929,8 +931,9 @@ router.get('/orders', async (req, res) => {
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false });
 
-    if (search.trim()) {
-      const term = `%${search.trim()}%`;
+    const cleanSearch = search.trim().replace(/[,()"]/g, ' ').trim();
+    if (cleanSearch) {
+      const term = `%${cleanSearch}%`;
       query = query.or(`order_number.ilike.${term},customer_name.ilike.${term},customer_phone.ilike.${term}`);
     }
     if (type && type !== 'all') {

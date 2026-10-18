@@ -13,11 +13,6 @@ const connectDB = async () => {
     const errorMsg =
       'Supabase PostgreSQL is not configured: Please set SUPABASE_URL and SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY / SUPABASE_PUBLISHABLE_KEY) in environment variables';
     logger.error(errorMsg);
-    if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
-    } else {
-      logger.warn('Running in development mode without active Supabase credentials.');
-    }
     return false;
   }
 
@@ -25,9 +20,6 @@ const connectDB = async () => {
     const { error } = await supabaseServer.from('products').select('id').limit(1);
     if (error) {
       logger.error(`Supabase PostgreSQL connectivity check failed: ${error.message}`);
-      if (process.env.NODE_ENV === 'production') {
-        process.exit(1);
-      }
       return false;
     }
 
@@ -36,9 +28,6 @@ const connectDB = async () => {
     return true;
   } catch (err) {
     logger.error(`Supabase connection error: ${err.message}`);
-    if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
-    }
     return false;
   }
 };
