@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster, toast } from 'react-hot-toast';
 import { useEffect, useState } from 'react';
 import { AlertCircle, X } from 'lucide-react';
@@ -6,6 +6,7 @@ import { AlertCircle, X } from 'lucide-react';
 import useAuthStore from './store/authStore';
 import { supabase } from './lib/supabase';
 import { ROLES } from './utils/constants';
+import { cleanAuthUrlParams, getAndClearPostLoginDestination } from './utils/authRedirect';
 
 // ── Layouts ───────────────────────────────────────────────────────────────────
 import CustomerLayout from './layouts/CustomerLayout';
@@ -61,9 +62,20 @@ import AccessDeniedPage from './pages/AccessDeniedPage';
 
 // ── Route guards ──────────────────────────────────────────────────────────────
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { user, token } = useAuthStore();
+  const { user, token, isLoading } = useAuthStore();
+  const location = useLocation();
 
-  if (!token || !user) return <Navigate to="/login" replace />;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-50">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!token || !user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <AccessDeniedPage />;
   }
@@ -71,7 +83,16 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 };
 
 const GuestRoute = ({ children }) => {
-  const { token } = useAuthStore();
+  const { token, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-50">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
   return token ? <Navigate to="/" replace /> : children;
 };
 
@@ -142,9 +163,15 @@ export default function App() {
     if (supabase) {
       const {
         data: { subscription },
-      } = supabase.auth.onAuthStateChange((event, session) => {
+      } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
-          setSupabaseSession(session);
+          await setSupabaseSession(session);
+          cleanAuthUrlParams();
+
+          const destination = getAndClearPostLoginDestination();
+          if (destination && typeof window !== 'undefined' && window.location.pathname !== destination) {
+            window.location.replace(destination);
+          }
         } else if (event === 'SIGNED_OUT') {
           useAuthStore.setState({ user: null, token: null });
         }
@@ -270,7 +297,7 @@ export default function App() {
 
         {/* ── Attendance QR Camera Scanner (/scan) ─────────────────────────── */}
         <Route path="scan" element={
-          <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.CASHIER, ROLES.INVENTORY_MANAGER]}>
+          <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.CASHIER, ROLES.INVENTORY_MANAGER, 'manager', 'staff']}>
             <QRScannerPage />
           </ProtectedRoute>
         } />

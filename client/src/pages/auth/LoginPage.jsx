@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -9,6 +9,7 @@ import useAuthStore from '../../store/authStore';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { ROLES } from '../../utils/constants';
 import { supabase } from '../../lib/supabase';
+import { getAuthRedirectUrl, savePostLoginDestination } from '../../utils/authRedirect';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -18,6 +19,7 @@ const schema = z.object({
 export default function LoginPage() {
   const { login, isLoading } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPw, setShowPw] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
@@ -31,11 +33,18 @@ export default function LoginPage() {
     const result = await login(data);
     if (result.success) {
       toast.success('Welcome back!');
-      // Route by role
-      if (result.role === ROLES.ADMIN) navigate('/admin');
-      else if (result.role === ROLES.CASHIER) navigate('/pos');
-      else if (result.role === ROLES.INVENTORY_MANAGER) navigate('/inventory');
-      else navigate('/');
+      const fromPath = location.state?.from?.pathname;
+      if (fromPath) {
+        navigate(fromPath, { replace: true });
+      } else if (result.role === ROLES.ADMIN) {
+        navigate('/admin');
+      } else if (result.role === ROLES.CASHIER) {
+        navigate('/pos');
+      } else if (result.role === ROLES.INVENTORY_MANAGER) {
+        navigate('/inventory');
+      } else {
+        navigate('/');
+      }
     } else {
       toast.error(result.error || 'Login failed');
     }
@@ -51,10 +60,19 @@ export default function LoginPage() {
 
     setIsGoogleLoading(true);
     try {
+      // Save intended destination if user was redirected to /login from protected route
+      const fromPath = location.state?.from?.pathname;
+      if (fromPath) {
+        savePostLoginDestination(fromPath);
+      }
+
+      // Compute safe OAuth redirect URL (always ends with / for Supabase wildcard compliance)
+      const redirectTo = getAuthRedirectUrl();
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin,
+          redirectTo,
         },
       });
 

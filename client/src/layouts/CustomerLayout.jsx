@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
 export default function CustomerLayout() {
-  const { user, logout, setSupabaseSession } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const { items } = useCartStore();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -15,38 +15,6 @@ export default function CustomerLayout() {
   const dropdownRef = useRef(null);
 
   const totalItems = items.reduce((s, i) => s + (Number(i.quantity) || Number(i.qty) || 1), 0);
-
-  // Subscribe to auth state changes to update navbar immediately
-  useEffect(() => {
-    if (!supabase) return;
-
-    // Check session on mount safely
-    supabase.auth
-      .getSession()
-      .then(({ data: { session } }) => {
-        if (session?.user) {
-          setSupabaseSession(session);
-        }
-      })
-      .catch((err) => {
-        console.warn('Session check failed:', err?.message || err);
-      });
-
-    // Listen to real-time auth state changes (OAuth callback, sign in, sign out)
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setSupabaseSession(session);
-      } else if (event === 'SIGNED_OUT') {
-        useAuthStore.setState({ user: null, token: null });
-      }
-    });
-
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, [setSupabaseSession]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

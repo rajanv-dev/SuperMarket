@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { authService } from '../services';
 import { supabase } from '../lib/supabase';
 import { ROLES } from '../utils/constants';
+import { getAuthRedirectUrl } from '../utils/authRedirect';
 
 /**
  * Helper to extract Google and Supabase user profile attributes
@@ -152,7 +153,7 @@ const useAuthStore = create(
       resetPassword: async (email) => {
         if (!supabase) throw new Error('Authentication service is not initialized');
         const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: `${window.location.origin}/admin/login`,
+          redirectTo: getAuthRedirectUrl('/admin/login'),
         });
         if (error) throw error;
         return true;
@@ -263,12 +264,28 @@ const useAuthStore = create(
        * Otherwise checks persisted token with backend.
        */
       initAuth: async () => {
+        const hasAuthCode =
+          typeof window !== 'undefined' &&
+          (window.location.search.includes('code=') ||
+            window.location.hash.includes('access_token='));
+
         // 1. Check Supabase session first
         if (supabase) {
           try {
             const { data: { session }, error } = await supabase.auth.getSession();
             if (session?.user && !error) {
-              get().setSupabaseSession(session);
+              await get().setSupabaseSession(session);
+              return;
+            }
+
+            // If an auth code is present in URL, PKCE exchange is in flight;
+            // keep isLoading: true so ProtectedRoute waits for onAuthStateChange!
+            if (hasAuthCode) {
+              setTimeout(() => {
+                if (get().isLoading) {
+                  set({ isLoading: false });
+                }
+              }, 4000);
               return;
             }
           } catch (err) {

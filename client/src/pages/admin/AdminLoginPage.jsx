@@ -6,6 +6,7 @@ import useAuthStore from '../../store/authStore';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { ROLES } from '../../utils/constants';
 import { supabase } from '../../lib/supabase';
+import { getAuthRedirectUrl } from '../../utils/authRedirect';
 
 export default function AdminLoginPage() {
   const { user, adminLogin, resetPassword, isLoading } = useAuthStore();
@@ -83,10 +84,12 @@ export default function AdminLoginPage() {
 
     setIsGoogleLoading(true);
     try {
+      const redirectTo = getAuthRedirectUrl('/admin');
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/admin`,
+          redirectTo,
         },
       });
 
