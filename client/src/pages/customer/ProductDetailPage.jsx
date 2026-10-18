@@ -309,7 +309,7 @@ export default function ProductDetailPage() {
                 disabled={!inStock}
                 className={`w-full sm:flex-1 py-3.5 px-6 rounded-2xl text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 ${
                   inStock
-                    ? 'bg-red-600 hover:bg-red-700 text-white hover:scale-[1.02] active:scale-[0.98] shadow-red-600/20'
+                    ? 'bg-primary-600 hover:bg-primary-700 text-white hover:scale-[1.02] active:scale-[0.98]'
                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 }`}
               >

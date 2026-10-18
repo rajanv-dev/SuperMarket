@@ -214,7 +214,7 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={isSubmitting || isGoogleLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-blue-700 via-primary-600 to-blue-600 hover:from-blue-600 hover:to-primary-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-900/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-500 hover:to-emerald-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-primary-600/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {isSubmitting ? (
                 <>

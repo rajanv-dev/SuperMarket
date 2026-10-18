@@ -61,7 +61,7 @@ export default function CustomerLayout() {
                 height="40"
                 loading="eager"
               />
-              <span className="text-lg sm:text-2xl font-display font-extrabold tracking-tight bg-gradient-to-r from-blue-700 via-primary-600 to-red-600 bg-clip-text text-transparent group-hover:from-blue-600 group-hover:to-red-500 transition-colors">
+              <span className="text-lg sm:text-2xl font-display font-extrabold tracking-tight bg-gradient-to-r from-primary-600 to-emerald-600 bg-clip-text text-transparent group-hover:from-primary-500 group-hover:to-emerald-500 transition-colors">
                 VRK Supermarket
               </span>
             </Link>
@@ -93,7 +93,7 @@ export default function CustomerLayout() {
               >
                 <ShoppingCart className="w-5 h-5" />
                 {totalItems > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-extrabold rounded-full w-5 h-5 flex items-center justify-center animate-scale-in shadow-xs">
+                  <span className="absolute -top-1 -right-1 bg-primary-600 text-white text-[10px] font-extrabold rounded-full w-5 h-5 flex items-center justify-center animate-scale-in shadow-xs">
                     {totalItems > 9 ? '9+' : totalItems}
                   </span>
                 )}
@@ -251,7 +251,7 @@ export default function CustomerLayout() {
             <Link to="/products?category=Groceries" className="hover:text-primary-600 transition-colors">Groceries</Link>
             <Link to="/products?category=Bakery" className="hover:text-primary-600 transition-colors">Bakery</Link>
             <Link to="/products?category=Cooking%20Oil" className="hover:text-primary-600 transition-colors">Cooking Oil</Link>
-            <Link to="/products?offer=true" className="text-red-600 font-bold hover:text-red-700 transition-colors">
+            <Link to="/products?offer=true" className="text-emerald-600 font-bold hover:text-emerald-700 transition-colors">
               🔥 Today's Offers
             </Link>
           </nav>
@@ -282,7 +282,7 @@ export default function CustomerLayout() {
             <Link to="/cart" onClick={() => setMobileMenuOpen(false)} className="flex items-center justify-between py-1.5 hover:text-primary-600">
               <span>Shopping Cart</span>
               {totalItems > 0 && (
-                <span className="bg-red-600 text-white rounded-full px-2 py-0.5 text-[10px] font-bold">
+                <span className="bg-primary-600 text-white rounded-full px-2 py-0.5 text-[10px] font-bold">
                   {totalItems}
                 </span>
               )}
@@ -290,6 +290,7 @@ export default function CustomerLayout() {
             <Link to="/products?category=Dairy" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 hover:text-primary-600">Dairy</Link>
             <Link to="/products?category=Groceries" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 hover:text-primary-600">Groceries</Link>
             <Link to="/products?category=Bakery" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 hover:text-primary-600">Bakery</Link>
+            <Link to="/products?offer=true" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 text-emerald-600 font-bold hover:text-emerald-700">🔥 Today's Offers</Link>
 
             {user ? (
               <div className="pt-2 border-t border-slate-100 space-y-2">

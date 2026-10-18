@@ -8,42 +8,32 @@ export default {
         display: ['Outfit', 'sans-serif'],
       },
       colors: {
-        // Primary brand — Royal Blue (VRK Shopping Mall & Supermarket Brand)
+        // Primary brand — deep fresh green (original supermarket branding)
         primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#2563eb', // Royal Blue
-          600: '#1d4ed8', // Royal Blue Main
-          700: '#1e40af',
-          800: '#1e3a8a',
-          900: '#172554',
-          950: '#0f172a',
+          50: '#edfcf4',
+          100: '#d3f8e3',
+          200: '#aaf0cb',
+          300: '#72e3ac',
+          400: '#38cf86',
+          500: '#14b86a', // main original green
+          600: '#0a9655', // darker green hover
+          700: '#097846',
+          800: '#0a5f39',
+          900: '#075B35', // dark green
+          950: '#003D2D', // deep forest green
         },
-        // Brand palette — Red, Blue, and White matching the 3D logo
-        brand: {
-          blue: '#1d4ed8',
-          'blue-dark': '#1e3a8a',
-          'blue-light': '#3b82f6',
-          red: '#dc2626',
-          'red-dark': '#b91c1c',
-          'red-light': '#ef4444',
-          navy: '#0f172a',
-        },
-        // Accent — Brand Red for offers, cart alerts, highlights
+        // Accent — warm amber for offers/badges
         accent: {
-          50: '#fef2f2',
-          100: '#fee2e2',
-          200: '#fecaca',
-          300: '#fca5a5',
-          400: '#f87171',
-          500: '#ef4444',
-          600: '#dc2626', // Main Brand Red
-          700: '#b91c1c',
-          800: '#991b1b',
-          900: '#7f1d1d',
+          50: '#fffbeb',
+          100: '#fef3c7',
+          200: '#fde68a',
+          300: '#fcd34d',
+          400: '#fbbf24',
+          500: '#f59e0b', // main
+          600: '#d97706',
+          700: '#b45309',
+          800: '#92400e',
+          900: '#78350f',
         },
         // Neutral dark for backgrounds / cards
         surface: {
@@ -63,8 +53,7 @@ export default {
       boxShadow: {
         card: '0 4px 24px 0 rgba(0,0,0,0.08)',
         'card-hover': '0 8px 40px 0 rgba(0,0,0,0.14)',
-        glow: '0 0 24px rgba(29, 78, 216, 0.35)',
-        'glow-red': '0 0 24px rgba(220, 38, 38, 0.35)',
+        glow: '0 0 24px rgba(20,184,106,0.35)',
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',

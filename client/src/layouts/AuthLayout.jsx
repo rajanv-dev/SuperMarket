@@ -5,11 +5,11 @@ import { Outlet, Link } from 'react-router-dom';
  */
 export default function AuthLayout() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-950 via-primary-900 to-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-surface-900 flex items-center justify-center p-4">
       {/* Decorative blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-red-600/15 rounded-full blur-3xl" />
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-accent-500/15 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
@@ -28,7 +28,7 @@ export default function AuthLayout() {
           <span className="text-2xl sm:text-3xl font-display font-extrabold text-white tracking-tight">
             VRK Supermarket
           </span>
-          <p className="mt-1 text-blue-200 text-sm">Fresh Groceries & Online Shopping</p>
+          <p className="mt-1 text-primary-200 text-sm">Fresh Groceries & Online Shopping</p>
         </div>
 
         <div className="card p-8 animate-scale-in">

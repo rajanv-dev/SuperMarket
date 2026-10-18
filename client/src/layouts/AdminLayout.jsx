@@ -70,10 +70,10 @@ export default function AdminLayout() {
             height="32"
           />
           <div className="flex flex-col">
-            <span className="text-base font-black bg-gradient-to-r from-blue-400 via-primary-300 to-red-400 bg-clip-text text-transparent leading-none">
+            <span className="text-base font-black bg-gradient-to-r from-primary-400 to-emerald-400 bg-clip-text text-transparent leading-none">
               VRK Supermarket
             </span>
-            <span className="text-[10px] font-semibold text-blue-400/90 uppercase tracking-wider mt-0.5">
+            <span className="text-[10px] font-semibold text-primary-400/80 uppercase tracking-wider mt-0.5">
               Admin Portal
             </span>
           </div>
