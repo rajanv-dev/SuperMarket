@@ -68,6 +68,7 @@ export default function LoginPage() {
 
       // Compute safe OAuth redirect URL (always ends with / for Supabase wildcard compliance)
       const redirectTo = getAuthRedirectUrl();
+      console.info('[VRK Supermarket] Google OAuth initiated with redirectTo:', redirectTo);
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
