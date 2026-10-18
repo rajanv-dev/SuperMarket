@@ -14,34 +14,63 @@ const extractUser = async (req) => {
     token = req.headers.authorization.split(' ')[1];
   }
 
-  if (!token || !supabaseServer) return null;
+  if (!token) return null;
 
-  try {
-    const { data: { user } } = await supabaseServer.auth.getUser(token);
-    if (user) {
-      const { data: profile } = await supabaseServer
-        .from('user_profiles')
-        .select('*')
-        .or(`auth_id.eq.${user.id},email.eq.${user.email}`)
-        .maybeSingle();
-
-      return {
-        id: user.id,
-        profileId: profile?.id,
-        email: user.email,
-        name: profile?.full_name || user.user_metadata?.full_name || user.email.split('@')[0],
-        phone: profile?.phone,
-        role: profile?.role || 'customer',
-      };
-    }
-  } catch {
-    // If Supabase token fails, try local JWT
-    const jwt = require('jsonwebtoken');
+  // 1. Try verifying with Supabase Auth
+  if (supabaseServer) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || '9983168fbd9c07dfa08963727d0eac786ae278266c528cd36482f60699a2d0e33b5de671078f0a37b34595f9007a2fed634245cea8c6b2070370aa6b166e909e');
-      return decoded;
+      const { data: { user }, error: sbErr } = await supabaseServer.auth.getUser(token);
+      if (user && !sbErr) {
+        const { data: profile } = await supabaseServer
+          .from('user_profiles')
+          .select('*')
+          .or(`auth_id.eq.${user.id},email.eq.${user.email}`)
+          .maybeSingle();
+
+        return {
+          id: user.id,
+          profileId: profile?.id,
+          email: user.email,
+          name: profile?.full_name || user.user_metadata?.full_name || user.email.split('@')[0],
+          phone: profile?.phone,
+          role: profile?.role || 'customer',
+        };
+      }
     } catch {}
   }
+
+  // 2. Fall back to local JWT
+  try {
+    const jwt = require('jsonwebtoken');
+    const secret =
+      process.env.JWT_SECRET ||
+      '9983168fbd9c07dfa08963727d0eac786ae278266c528cd36482f60699a2d0e33b5de671078f0a37b34595f9007a2fed634245cea8c6b2070370aa6b166e909e';
+    const decoded = jwt.verify(token, secret);
+    if (decoded) {
+      if (supabaseServer && decoded.email) {
+        try {
+          const { data: profile } = await supabaseServer
+            .from('user_profiles')
+            .select('*')
+            .eq('email', decoded.email.toLowerCase())
+            .maybeSingle();
+
+          if (profile) {
+            return {
+              id: profile.id,
+              profileId: profile.id,
+              email: profile.email,
+              name: profile.full_name || decoded.name,
+              phone: profile.phone,
+              role: profile.role || decoded.role || 'customer',
+            };
+          }
+        } catch {}
+      }
+      return decoded;
+    }
+  } catch {}
+
   return null;
 };
 
@@ -315,6 +344,7 @@ router.get('/', async (req, res) => {
 /**
  * GET /api/orders/:id
  * Returns single order details with its items.
+ * Enforces ownership check for customers while allowing staff/admin full access.
  */
 router.get('/:id', async (req, res) => {
   try {
@@ -327,10 +357,22 @@ router.get('/:id', async (req, res) => {
       .from('orders')
       .select('*, order_items(*)')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error || !order) {
       return sendError(res, { status: 404, message: 'Order not found' });
+    }
+
+    // Ownership check if customer is authenticated
+    const authUser = await extractUser(req);
+    const staffRoles = ['admin', 'inventoryManager', 'cashier', 'manager', 'staff'];
+    if (authUser && !staffRoles.includes(authUser.role)) {
+      const isOwner =
+        (order.customer_id && order.customer_id === authUser.profileId) ||
+        (order.customer_email && order.customer_email.toLowerCase() === authUser.email.toLowerCase());
+      if (!isOwner) {
+        return sendError(res, { status: 403, message: 'Access denied: You can only view your own orders' });
+      }
     }
 
     return sendSuccess(res, { status: 200, data: order });
@@ -342,7 +384,7 @@ router.get('/:id', async (req, res) => {
 /**
  * PATCH /api/orders/:id/status
  * Allows authorized staff or admin to update order fulfillment status
- * Supports: pending, confirmed, packed, out_for_delivery, delivered, cancelled
+ * Supports: pending, confirmed, packed, out_for_delivery, delivered, completed, cancelled, refunded
  */
 router.patch('/:id/status', async (req, res) => {
   try {
@@ -353,7 +395,7 @@ router.patch('/:id/status', async (req, res) => {
     const authUser = await extractUser(req);
     const allowedRoles = ['admin', 'inventoryManager', 'cashier', 'manager', 'staff'];
     if (!authUser || !allowedRoles.includes(authUser.role)) {
-      return sendError(res, { status: 403, message: 'Only authorized staff can update order status' });
+      return sendError(res, { status: 403, message: 'Only authorized staff or administrators can update order status' });
     }
 
     const { id } = req.params;
@@ -367,6 +409,7 @@ router.patch('/:id/status', async (req, res) => {
       'delivered',
       'cancelled',
       'completed',
+      'refunded',
     ];
 
     const cleanStatus = (status || '').toLowerCase().trim();
@@ -377,13 +420,59 @@ router.patch('/:id/status', async (req, res) => {
       });
     }
 
+    // Fetch existing order
+    const { data: existingOrder, error: fetchErr } = await supabaseServer
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchErr || !existingOrder) {
+      return sendError(res, { status: 404, message: 'Order not found' });
+    }
+
+    if (existingOrder.status === 'cancelled') {
+      return sendError(res, { status: 400, message: 'Cancelled orders cannot change status' });
+    }
+
+    if (existingOrder.status === 'delivered' && cleanStatus !== 'cancelled' && cleanStatus !== 'refunded') {
+      return sendError(res, { status: 400, message: 'Delivered orders cannot be reverted to earlier stages' });
+    }
+
     const updates = {
       status: cleanStatus,
       updated_at: new Date().toISOString(),
     };
 
+    if (cleanStatus === 'delivered' || cleanStatus === 'completed') {
+      updates.payment_status = 'paid';
+    }
+
     if (notes) {
       updates.delivery_notes = notes;
+    }
+
+    // If order is cancelled, restock product quantities
+    if (cleanStatus === 'cancelled' && existingOrder.status !== 'cancelled') {
+      const items = existingOrder.order_items || [];
+      for (const item of items) {
+        if (item.product_id && item.quantity > 0) {
+          const { data: prod } = await supabaseServer
+            .from('products')
+            .select('stock_quantity')
+            .eq('id', item.product_id)
+            .maybeSingle();
+          if (prod) {
+            await supabaseServer
+              .from('products')
+              .update({
+                stock_quantity: Number(prod.stock_quantity || 0) + Number(item.quantity),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', item.product_id);
+          }
+        }
+      }
     }
 
     const { data: updated, error } = await supabaseServer

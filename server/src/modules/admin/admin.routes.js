@@ -1229,4 +1229,236 @@ router.put('/settings', restrictTo(ROLES.ADMIN), async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8. ORDERS MANAGEMENT & FULFILLMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.get('/orders', async (req, res) => {
+  try {
+    if (!supabaseServer) {
+      return sendError(res, { status: 503, message: 'Database service unavailable' });
+    }
+
+    const { search = '', type = 'all', status = 'all', limit = 100 } = req.query;
+
+    let query = supabaseServer
+      .from('orders')
+      .select('*, order_items(*)')
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit, 10) || 100);
+
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      query = query.or(`order_number.ilike.${term},customer_name.ilike.${term},customer_phone.ilike.${term},customer_email.ilike.${term}`);
+    }
+
+    if (type && type !== 'all') {
+      query = query.eq('type', type);
+    }
+
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return sendSuccess(res, { status: 200, data: data || [] });
+  } catch (err) {
+    return sendError(res, { status: 500, message: err.message });
+  }
+});
+
+router.get('/orders/:id', async (req, res) => {
+  try {
+    if (!supabaseServer) {
+      return sendError(res, { status: 503, message: 'Database service unavailable' });
+    }
+
+    const { id } = req.params;
+    const { data: order, error } = await supabaseServer
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !order) {
+      return sendError(res, { status: 404, message: 'Order not found' });
+    }
+
+    return sendSuccess(res, { status: 200, data: order });
+  } catch (err) {
+    return sendError(res, { status: 500, message: err.message });
+  }
+});
+
+router.patch('/orders/:id/status', async (req, res) => {
+  try {
+    if (!supabaseServer) {
+      return sendError(res, { status: 503, message: 'Database service unavailable' });
+    }
+
+    const { id } = req.params;
+    const { status, notes } = req.body;
+
+    const validStatuses = [
+      'pending',
+      'confirmed',
+      'packed',
+      'out_for_delivery',
+      'delivered',
+      'completed',
+      'cancelled',
+      'refunded',
+    ];
+
+    const cleanStatus = (status || '').toLowerCase().trim();
+    if (!cleanStatus || !validStatuses.includes(cleanStatus)) {
+      return sendError(res, {
+        status: 400,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      });
+    }
+
+    const { data: existingOrder, error: fetchErr } = await supabaseServer
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchErr || !existingOrder) {
+      return sendError(res, { status: 404, message: 'Order not found' });
+    }
+
+    if (existingOrder.status === 'cancelled') {
+      return sendError(res, { status: 400, message: 'Cancelled orders cannot be altered' });
+    }
+
+    if (existingOrder.status === 'delivered' && cleanStatus !== 'cancelled' && cleanStatus !== 'refunded') {
+      return sendError(res, { status: 400, message: 'Delivered orders cannot be moved backwards' });
+    }
+
+    const updates = {
+      status: cleanStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (cleanStatus === 'delivered' || cleanStatus === 'completed') {
+      updates.payment_status = 'paid';
+    }
+
+    if (notes) {
+      updates.delivery_notes = notes;
+    }
+
+    // Restock inventory if order is cancelled
+    if (cleanStatus === 'cancelled' && existingOrder.status !== 'cancelled') {
+      const items = existingOrder.order_items || [];
+      for (const item of items) {
+        if (item.product_id && item.quantity > 0) {
+          const { data: prod } = await supabaseServer
+            .from('products')
+            .select('stock_quantity')
+            .eq('id', item.product_id)
+            .maybeSingle();
+          if (prod) {
+            await supabaseServer
+              .from('products')
+              .update({
+                stock_quantity: Number(prod.stock_quantity || 0) + Number(item.quantity),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', item.product_id);
+          }
+        }
+      }
+    }
+
+    const { data: updated, error } = await supabaseServer
+      .from('orders')
+      .update(updates)
+      .eq('id', id)
+      .select('*, order_items(*)')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    return sendSuccess(res, {
+      status: 200,
+      message: `Order status updated to "${cleanStatus}" successfully`,
+      data: updated,
+    });
+  } catch (err) {
+    return sendError(res, { status: 500, message: err.message });
+  }
+});
+
+router.post('/orders/:id/refund', async (req, res) => {
+  try {
+    if (!supabaseServer) {
+      return sendError(res, { status: 503, message: 'Database service unavailable' });
+    }
+
+    const { id } = req.params;
+    const { reason = 'Customer refund' } = req.body;
+
+    const { data: existingOrder, error: fetchErr } = await supabaseServer
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchErr || !existingOrder) {
+      return sendError(res, { status: 404, message: 'Order not found' });
+    }
+
+    if (existingOrder.status === 'refunded') {
+      return sendError(res, { status: 400, message: 'Order is already refunded' });
+    }
+
+    // Restock items
+    const items = existingOrder.order_items || [];
+    for (const item of items) {
+      if (item.product_id && item.quantity > 0) {
+        const { data: prod } = await supabaseServer
+          .from('products')
+          .select('stock_quantity')
+          .eq('id', item.product_id)
+          .maybeSingle();
+        if (prod) {
+          await supabaseServer
+            .from('products')
+            .update({
+              stock_quantity: Number(prod.stock_quantity || 0) + Number(item.quantity),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', item.product_id);
+        }
+      }
+    }
+
+    const { data: updated, error } = await supabaseServer
+      .from('orders')
+      .update({
+        status: 'refunded',
+        payment_status: 'refunded',
+        notes: `${existingOrder.notes || ''} [Refunded: ${reason}]`.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*, order_items(*)')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Order refunded and inventory restocked successfully',
+      data: updated,
+    });
+  } catch (err) {
+    return sendError(res, { status: 500, message: err.message });
+  }
+});
+
 module.exports = router;

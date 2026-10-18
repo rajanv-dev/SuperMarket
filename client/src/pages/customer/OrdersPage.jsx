@@ -98,15 +98,23 @@ export default function OrdersPage() {
                       {order.order_number}
                     </span>
                     <span
-                      className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        order.status === 'completed'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                        order.status === 'delivered' || order.status === 'completed'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : order.status === 'confirmed'
+                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          : order.status === 'packed'
+                          ? 'bg-purple-50 text-purple-800 border-purple-200'
+                          : order.status === 'out_for_delivery'
+                          ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
                           : order.status === 'cancelled'
-                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          ? 'bg-rose-50 text-rose-800 border-rose-200'
+                          : order.status === 'refunded'
+                          ? 'bg-slate-100 text-slate-800 border-slate-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
                       }`}
                     >
-                      {order.status}
+                      {order.status?.replace(/_/g, ' ')}
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 flex items-center gap-1.5">

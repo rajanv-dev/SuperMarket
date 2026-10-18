@@ -554,13 +554,34 @@ export const adminService = {
     };
   },
 
-  async updateOrderStatus(orderId, newStatus) {
+  async updateOrderStatus(orderId, newStatus, notes = '') {
+    try {
+      const res = await api.patch(`/admin/orders/${orderId}/status`, { status: newStatus, notes });
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw new Error(err.response?.data?.message || 'Unauthorized');
+      }
+      try {
+        const fallbackRes = await api.patch(`/orders/${orderId}/status`, { status: newStatus, notes });
+        if (fallbackRes.data?.success && fallbackRes.data?.data) {
+          return fallbackRes.data.data;
+        }
+      } catch (fbErr) {
+        const msg = fbErr.response?.data?.message || fbErr.message;
+        throw new Error(msg);
+      }
+      console.warn('Backend updateOrderStatus failed, using direct Supabase fallback:', err.message);
+    }
+
     if (!supabase) throw new Error('Supabase not ready');
     const { data, error } = await supabase
       .from('orders')
       .update({
         status: newStatus,
-        payment_status: newStatus === 'completed' ? 'paid' : newStatus === 'refunded' ? 'refunded' : 'pending',
+        payment_status: newStatus === 'completed' || newStatus === 'delivered' ? 'paid' : newStatus === 'refunded' ? 'refunded' : 'pending',
         updated_at: new Date().toISOString(),
       })
       .eq('id', orderId)
