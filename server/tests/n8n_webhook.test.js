@@ -146,4 +146,20 @@ describe('n8n Webhook Service — WhatsApp Order Confirmation Dispatcher', () =>
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(dispatchedOrderIds.size).toBe(0); // Bypassed idempotency cache
   });
+
+  it('includes X-Webhook-Secret header when N8N_WEBHOOK_SECRET is configured', async () => {
+    process.env.N8N_WEBHOOK_SECRET = 'secret_token_123';
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '{"success":true}',
+    });
+
+    await sendOrderConfirmationWebhook(mockOrder, mockItems);
+
+    const [, calledInit] = global.fetch.mock.calls[0];
+    expect(calledInit.headers['X-Webhook-Secret']).toBe('secret_token_123');
+
+    delete process.env.N8N_WEBHOOK_SECRET;
+  });
 });

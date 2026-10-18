@@ -2,7 +2,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { supabaseServer } = require('../../config/supabase');
 const { sendSuccess, sendError } = require('../../utils/response');
-const { sendOrderConfirmationWebhook, testWebhookConnection, logNotificationStatus } = require('../../services/n8nWebhookService');
+const { sendOrderConfirmationWebhook, testWebhookConnection, logNotificationStatus, dispatchedOrderIds } = require('../../services/n8nWebhookService');
 const { normalizePhoneNumber, maskPhoneNumber } = require('../../utils/phone');
 const logger = require('../../utils/logger');
 
@@ -415,6 +415,45 @@ router.post('/notification-status', async (req, res) => {
     });
   } catch (err) {
     logger.error(`Error processing notification status callback: ${err.message}`);
+    return sendError(res, { status: 500, message: err.message });
+  }
+});
+
+/**
+ * POST /api/orders/:id/retry-notification
+ * Retries the WhatsApp order confirmation notification for an existing order.
+ * Clears the in-memory deduplication cache for this order, fetches latest order from database,
+ * and re-dispatches to N8N_ORDER_WEBHOOK_URL. Does NOT duplicate the order.
+ */
+router.post('/:id/retry-notification', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!supabaseServer) {
+      return sendError(res, { status: 503, message: 'Database service unavailable' });
+    }
+
+    const { data: order, error } = await supabaseServer
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !order) {
+      return sendError(res, { status: 404, message: 'Order not found' });
+    }
+
+    // Clear deduplication cache to allow intentional retry
+    dispatchedOrderIds.delete(String(order.id));
+
+    const result = await sendOrderConfirmationWebhook(order, order.order_items || []);
+    return sendSuccess(res, {
+      status: result.success ? 200 : 502,
+      message: result.success
+        ? 'Notification retry succeeded'
+        : `Notification retry failed: ${result.error || 'Check status'}`,
+      data: result,
+    });
+  } catch (err) {
     return sendError(res, { status: 500, message: err.message });
   }
 });

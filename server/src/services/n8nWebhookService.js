@@ -134,9 +134,12 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
       email: order.customer_email || '',
     },
     items: lineItems,
+    order_items: lineItems,
     total: Number(order.total || 0),
+    amount: Number(order.total || 0),
     currency: 'INR',
     createdAt: order.created_at || new Date().toISOString(),
+    orderTimestamp: order.created_at || new Date().toISOString(),
 
     // Backwards-compatible aliases for varied n8n expression access
     order_id: order.id,
@@ -147,17 +150,21 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
     customerPhone: normalizedPhone || rawCustomerPhone,
     customerEmail: order.customer_email || '',
     status: order.status || 'pending',
+    orderStatus: order.status || 'pending',
     paymentMethod: order.payment_method || 'cod',
     paymentStatus: order.payment_status || 'pending',
     subtotal: Number(order.subtotal || 0),
     deliveryFee: Number(order.delivery_fee || 0),
     deliveryAddress: order.delivery_address || '',
+    delivery_address: order.delivery_address || '',
+    address: order.delivery_address || '',
     houseNo: order.house_no || null,
     city: order.city || null,
     postalCode: order.postal_code || null,
     deliveryNotes: order.delivery_notes || null,
     whatsappOptIn: true,
     itemsCount: lineItems.length,
+    quantity: lineItems.reduce((acc, i) => acc + (i.quantity || 1), 0),
     isDiagnosticTest: isDiagnostic,
   };
 
@@ -169,6 +176,16 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
     'X-Order-Number': String(order.order_number || ''),
     'X-Idempotency-Key': String(order.id),
   };
+
+  // Support X-Webhook-Secret header from environment variables
+  const webhookSecret =
+    process.env.N8N_WEBHOOK_SECRET ||
+    process.env.WEBHOOK_SECRET ||
+    process.env.X_WEBHOOK_SECRET;
+
+  if (webhookSecret && webhookSecret.trim()) {
+    headers['X-Webhook-Secret'] = webhookSecret.trim();
+  }
 
   // Support Basic auth or Bearer auth if configured in environment
   const authUser = process.env.N8N_WEBHOOK_USER;
