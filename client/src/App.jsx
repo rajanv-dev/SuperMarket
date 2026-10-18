@@ -74,7 +74,8 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (!token || !user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    const isTargetingAdmin = location.pathname.startsWith('/admin');
+    return <Navigate to={isTargetingAdmin ? '/admin/login' : '/login'} state={{ from: location }} replace />;
   }
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <AccessDeniedPage />;

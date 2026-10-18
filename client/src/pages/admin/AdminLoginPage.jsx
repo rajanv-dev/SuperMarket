@@ -1,12 +1,23 @@
 import { useState } from 'react';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
-import { Shield, Lock, Mail, Eye, EyeOff, ArrowLeft, KeyRound, AlertCircle, CheckCircle2 } from 'lucide-react';
+import {
+  ShieldCheck,
+  Lock,
+  Mail,
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  KeyRound,
+  AlertCircle,
+  CheckCircle2,
+  Sparkles,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { ROLES } from '../../utils/constants';
 import { supabase } from '../../lib/supabase';
-import { getAuthRedirectUrl } from '../../utils/authRedirect';
+import { getAuthRedirectUrl, savePostLoginDestination } from '../../utils/authRedirect';
 
 export default function AdminLoginPage() {
   const { user, adminLogin, resetPassword, isLoading } = useAuthStore();
@@ -32,6 +43,7 @@ export default function AdminLoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting || isGoogleLoading) return;
     setErrorMessage(null);
 
     if (!email.trim() || !password) {
@@ -83,7 +95,10 @@ export default function AdminLoginPage() {
     }
 
     setIsGoogleLoading(true);
+    setErrorMessage(null);
     try {
+      // Save intended destination so App.jsx redirects to /admin on session return
+      savePostLoginDestination('/admin');
       const redirectTo = getAuthRedirectUrl('/admin');
 
       const { error } = await supabase.auth.signInWithOAuth({
@@ -95,77 +110,152 @@ export default function AdminLoginPage() {
 
       if (error) {
         toast.error(error.message || 'Google authentication failed');
+        setErrorMessage(error.message || 'Google authentication failed');
         setIsGoogleLoading(false);
       }
     } catch (err) {
-      toast.error(err?.message || 'Error initiating Google sign-in');
+      const msg = err?.message || 'Error initiating Google sign-in';
+      toast.error(msg);
+      setErrorMessage(msg);
       setIsGoogleLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Background glow highlights */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-primary-950/40 via-emerald-950/20 to-transparent pointer-events-none" />
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div
+      className="min-h-screen flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 relative overflow-hidden select-none"
+      style={{
+        background: 'linear-gradient(135deg, #022C22 0%, #064E3B 52%, #065F46 100%)',
+      }}
+    >
+      {/* ── Soft Ambient Lighting & Radial Gradients ─────────────────────── */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `
+            radial-gradient(circle at 18% 18%, rgba(16, 185, 129, 0.18) 0%, transparent 45%),
+            radial-gradient(circle at 82% 82%, rgba(5, 150, 105, 0.22) 0%, transparent 48%),
+            radial-gradient(ellipse at 50% 50%, rgba(52, 211, 153, 0.08) 0%, transparent 65%)
+          `,
+        }}
+      />
 
-      {/* Back to Storefront Link */}
-      <div className="absolute top-6 left-6 z-20">
+      {/* ── Decorative Supermarket & Leaf Motifs (Low Opacity) ───────────── */}
+      {/* Top Left Leaf Cluster */}
+      <svg
+        className="absolute top-4 left-4 sm:top-12 sm:left-12 w-48 sm:w-72 h-48 sm:h-72 text-emerald-300 opacity-[0.045] pointer-events-none transform -rotate-12 transition-transform duration-1000"
+        viewBox="0 0 200 200"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path d="M42.7,24.5 C68.1,7.2 99.4,12.8 120.3,37.3 C141.2,61.8 147.1,95.4 135.5,123.6 C123.9,151.8 97.4,168.9 67.8,167.3 C38.2,165.7 12.1,145.9 3.8,117.4 C-4.5,88.9 6.8,57.8 24.5,42.7 Z" />
+        <path d="M100,20 C120,60 140,110 90,170" stroke="currentColor" strokeWidth="4" fill="none" />
+        <path d="M110,65 C130,70 145,85 145,85" stroke="currentColor" strokeWidth="3" fill="none" />
+        <path d="M98,95 C118,102 130,118 130,118" stroke="currentColor" strokeWidth="3" fill="none" />
+        <path d="M88,125 C102,135 112,148 112,148" stroke="currentColor" strokeWidth="3" fill="none" />
+      </svg>
+
+      {/* Bottom Right Grocery Cart & Ingredients Motif */}
+      <svg
+        className="absolute -bottom-8 -right-8 sm:bottom-6 sm:right-6 w-56 sm:w-80 h-56 sm:h-80 text-emerald-200 opacity-[0.04] pointer-events-none transform rotate-6"
+        viewBox="0 0 240 240"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {/* Shopping Cart Outline */}
+        <circle cx="90" cy="195" r="14" fill="currentColor" />
+        <circle cx="175" cy="195" r="14" fill="currentColor" />
+        <path d="M30 40 h35 l24 95 h100 l22 -75 H68" />
+        {/* Fresh Produce silhouettes inside cart */}
+        <path d="M105 50 Q115 30 130 50 Q145 70 120 75 Z" fill="currentColor" />
+        <path d="M140 45 Q155 35 165 52 Q170 70 150 72 Z" fill="currentColor" />
+      </svg>
+
+      {/* Subtle Ambient Floating Particles (Lightweight CSS) */}
+      <div className="absolute top-1/4 right-1/4 w-2 h-2 rounded-full bg-emerald-400/20 blur-[1px] animate-pulse pointer-events-none" />
+      <div className="absolute bottom-1/3 left-1/5 w-2.5 h-2.5 rounded-full bg-emerald-300/15 blur-[1px] animate-pulse pointer-events-none" />
+
+      {/* ── Back to Customer Storefront ─────────────────────────────────── */}
+      <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20">
         <Link
           to="/"
-          className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 px-3.5 py-2 rounded-xl transition-all"
+          className="flex items-center gap-2 text-xs font-semibold text-emerald-100/80 hover:text-white bg-[#022119]/80 hover:bg-[#032e23] border border-emerald-500/20 hover:border-emerald-400/40 px-3.5 py-2 rounded-xl backdrop-blur-md transition-all shadow-sm"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
+          <ArrowLeft className="w-3.5 h-3.5 text-emerald-400" />
           <span>Customer Storefront</span>
         </Link>
       </div>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4">
+      {/* ── Main Container ──────────────────────────────────────────────── */}
+      <div className="w-full max-w-md mx-auto relative z-10">
         {/* Brand Header */}
-        <div className="text-center mb-8 flex flex-col items-center">
-          <Link to="/" className="inline-block group mb-3" aria-label="Customer Storefront">
-            <img
-              src="/logo.png"
-              alt="VRK Shopping Mall & Supermarket Logo"
-              className="w-16 h-16 vrk-logo-3d mx-auto drop-shadow-xl"
-              width="64"
-              height="64"
-              loading="eager"
-            />
+        <div className="text-center mb-6 sm:mb-8 flex flex-col items-center">
+          <Link
+            to="/"
+            className="inline-block group mb-3 transform hover:scale-105 transition-transform duration-300"
+            aria-label="VRK Supermarket Storefront"
+          >
+            <div className="relative">
+              <div className="absolute -inset-2 bg-emerald-500/15 rounded-2xl blur-md pointer-events-none" />
+              <img
+                src="/logo.png"
+                alt="VRK Supermarket Logo"
+                className="w-16 h-16 sm:w-20 sm:h-20 vrk-logo-3d relative mx-auto drop-shadow-2xl object-contain"
+                width="80"
+                height="80"
+                loading="eager"
+              />
+            </div>
           </Link>
-          <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-white tracking-tight drop-shadow-sm">
             VRK Supermarket Admin Portal
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-emerald-100/75 mt-1 font-medium max-w-xs sm:max-w-none">
             Authorized Administrator & Staff Management Access
           </p>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-slate-800/90 backdrop-blur-xl py-8 px-6 sm:px-10 shadow-2xl rounded-3xl border border-slate-700/80">
+        {/* ── Login Card (Glassmorphism + Subtle Green Border + Shadow) ─── */}
+        <div className="bg-[#02231b]/80 sm:bg-[#03281f]/85 backdrop-blur-2xl py-7 px-5 sm:py-9 sm:px-10 shadow-[0_20px_50px_rgba(0,0,0,0.55)] rounded-3xl border border-emerald-500/25 relative overflow-hidden">
+          {/* Subtle top edge glow highlight */}
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent pointer-events-none" />
+
+          {/* Error Message Alert */}
           {errorMessage && (
-            <div className="mb-6 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
+            <div
+              role="alert"
+              className="mb-5 p-3.5 rounded-xl bg-rose-950/70 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5 shadow-sm animate-fade-in"
+            >
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-              <span>{errorMessage}</span>
+              <span className="leading-relaxed">{errorMessage}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5" noValidate>
             {/* Email Address */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+              <label
+                htmlFor="admin-email"
+                className="block text-xs font-semibold text-emerald-100/90 mb-1.5 uppercase tracking-wider"
+              >
                 Administrator Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400/80 pointer-events-none" />
                 <input
+                  id="admin-email"
                   type="email"
                   required
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@super.local"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                  disabled={isSubmitting || isGoogleLoading}
+                  className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-[#011712]/80 border border-emerald-800/70 rounded-xl text-sm text-white placeholder-emerald-100/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400 transition-all disabled:opacity-60"
                 />
               </div>
             </div>
@@ -173,7 +263,10 @@ export default function AdminLoginPage() {
             {/* Password */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <label
+                  htmlFor="admin-password"
+                  className="block text-xs font-semibold text-emerald-100/90 uppercase tracking-wider"
+                >
                   Password
                 </label>
                 <button
@@ -183,47 +276,49 @@ export default function AdminLoginPage() {
                     setResetSuccess(false);
                     setIsResetOpen(true);
                   }}
-                  className="text-xs font-semibold text-primary-400 hover:text-primary-300 hover:underline"
+                  className="text-xs font-semibold text-emerald-300 hover:text-emerald-200 transition-colors cursor-pointer"
                 >
                   Forgot password?
                 </button>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400/80 pointer-events-none" />
                 <input
+                  id="admin-password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                  disabled={isSubmitting || isGoogleLoading}
+                  className="w-full pl-10 pr-10 py-2.5 sm:py-3 bg-[#011712]/80 border border-emerald-800/70 rounded-xl text-sm text-white placeholder-emerald-100/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400 transition-all disabled:opacity-60"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 rounded-lg transition-colors"
-                  aria-label="Toggle password visibility"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-emerald-300/70 hover:text-white rounded-lg transition-colors cursor-pointer"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Submit Button */}
+            {/* Submit Button (Original Green Brand Color) */}
             <button
               type="submit"
               disabled={isSubmitting || isGoogleLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-500 hover:to-emerald-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-primary-600/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-emerald-600 via-primary-600 to-[#075B35] hover:from-emerald-500 hover:via-primary-500 hover:to-[#097846] active:scale-[0.99] text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-950/70 border border-emerald-400/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {isSubmitting ? (
                 <>
                   <LoadingSpinner size="sm" />
-                  <span>Verifying Credentials...</span>
+                  <span>Verifying Administrator Access...</span>
                 </>
               ) : (
                 <>
-                  <Lock className="w-4 h-4" />
+                  <Lock className="w-4 h-4 text-emerald-200" />
                   <span>Sign In to Admin Dashboard</span>
                 </>
               )}
@@ -231,12 +326,12 @@ export default function AdminLoginPage() {
           </form>
 
           {/* Divider */}
-          <div className="relative my-6">
+          <div className="relative my-5 sm:my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-700" />
+              <div className="w-full border-t border-emerald-800/60" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-slate-800 px-3 text-slate-500 font-semibold tracking-wider">
+              <span className="bg-[#03281f] px-3.5 text-emerald-200/70 font-semibold tracking-wider text-[11px] rounded-full border border-emerald-800/50">
                 OR SIGN IN WITH GOOGLE
               </span>
             </div>
@@ -247,12 +342,12 @@ export default function AdminLoginPage() {
             type="button"
             onClick={handleGoogleSignIn}
             disabled={isGoogleLoading || isSubmitting}
-            className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-slate-900/90 border border-slate-700 rounded-xl text-slate-200 text-sm font-medium hover:bg-slate-900 hover:border-slate-600 transition-all disabled:opacity-60 cursor-pointer"
+            className="w-full flex items-center justify-center gap-3 py-2.5 sm:py-3 px-4 bg-[#011712]/85 hover:bg-[#022119] border border-emerald-700/60 hover:border-emerald-500/60 rounded-xl text-emerald-50 text-sm font-medium transition-all shadow-sm disabled:opacity-60 cursor-pointer"
           >
             {isGoogleLoading ? (
               <div className="flex items-center gap-2">
                 <LoadingSpinner size="sm" />
-                <span className="text-slate-400">Authenticating...</span>
+                <span className="text-emerald-200">Authenticating with Google...</span>
               </div>
             ) : (
               <>
@@ -281,24 +376,28 @@ export default function AdminLoginPage() {
         </div>
 
         {/* Security Notice */}
-        <p className="text-center text-[11px] text-slate-500 mt-6 flex items-center justify-center gap-1.5">
-          <Shield className="w-3.5 h-3.5 text-primary-500/70" />
+        <div className="text-center text-[11px] text-emerald-200/60 mt-5 sm:mt-6 flex items-center justify-center gap-1.5 px-2">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>Role verification is enforced on backend for all administrator operations.</span>
-        </p>
+        </div>
       </div>
 
-      {/* Forgot Password Modal */}
+      {/* ── Forgot Password Modal ────────────────────────────────────────── */}
       {isResetOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="bg-slate-800 rounded-3xl shadow-2xl border border-slate-700 w-full max-w-md p-6 animate-scale-in text-white">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#03281f] rounded-3xl shadow-2xl border border-emerald-500/30 w-full max-w-md p-6 animate-scale-in text-white relative">
+            <div className="flex items-center justify-between pb-4 border-b border-emerald-800/60">
               <div className="flex items-center gap-2">
-                <KeyRound className="w-5 h-5 text-primary-400" />
-                <h3 className="font-bold text-base">Reset Admin Password</h3>
+                <div className="p-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30">
+                  <KeyRound className="w-4 h-4 text-emerald-300" />
+                </div>
+                <h3 className="font-bold text-base text-white">Reset Admin Password</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setIsResetOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-emerald-300/70 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                aria-label="Close modal"
               >
                 ✕
               </button>
@@ -306,54 +405,56 @@ export default function AdminLoginPage() {
 
             {resetSuccess ? (
               <div className="py-6 text-center space-y-3">
-                <div className="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto">
+                <div className="w-12 h-12 bg-emerald-500/20 text-emerald-300 rounded-full flex items-center justify-center mx-auto border border-emerald-500/30">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <h4 className="font-bold text-sm text-slate-200">Password Recovery Email Sent</h4>
-                <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                  We have dispatched a password recovery link to <strong>{resetEmail}</strong> via Supabase Auth.
+                <h4 className="font-bold text-sm text-white">Password Recovery Email Sent</h4>
+                <p className="text-xs text-emerald-100/70 max-w-xs mx-auto leading-relaxed">
+                  We have dispatched a password recovery link to{' '}
+                  <strong className="text-emerald-200">{resetEmail}</strong> via Supabase Auth.
                   Please check your inbox.
                 </p>
                 <button
                   type="button"
                   onClick={() => setIsResetOpen(false)}
-                  className="mt-4 px-5 py-2 text-xs font-semibold bg-primary-600 hover:bg-primary-500 text-white rounded-xl transition-all"
+                  className="mt-4 px-5 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all cursor-pointer shadow-sm"
                 >
                   Return to Login
                 </button>
               </div>
             ) : (
               <form onSubmit={handleResetPassword} className="py-4 space-y-4">
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-emerald-100/70 leading-relaxed">
                   Enter your registered administrator email address. Supabase Auth will dispatch a secure password reset link.
                 </p>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Email Address
+                  <label htmlFor="reset-email" className="block text-xs font-semibold text-emerald-100/90 mb-1">
+                    Administrator Email Address
                   </label>
                   <input
+                    id="reset-email"
                     type="email"
                     required
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
                     placeholder="admin@super.local"
-                    className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2.5 bg-[#011712]/90 border border-emerald-800/80 rounded-xl text-sm text-white placeholder-emerald-100/30 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-700">
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-emerald-800/60">
                   <button
                     type="button"
                     onClick={() => setIsResetOpen(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white"
+                    className="px-4 py-2 text-xs font-semibold text-emerald-200/70 hover:text-white transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isResetting}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-500 rounded-xl transition-all disabled:opacity-60 flex items-center gap-2"
+                    className="px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-emerald-600 to-primary-600 hover:from-emerald-500 hover:to-primary-500 rounded-xl transition-all disabled:opacity-60 flex items-center gap-2 cursor-pointer shadow-sm"
                   >
                     {isResetting ? <LoadingSpinner size="sm" /> : 'Send Reset Link'}
                   </button>

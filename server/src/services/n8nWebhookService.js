@@ -1,4 +1,6 @@
 const logger = require('../utils/logger');
+const { supabaseServer } = require('../config/supabase');
+const { normalizePhoneNumber, maskPhoneNumber, toDigitsOnly } = require('../utils/phone');
 
 // In-memory set to prevent duplicate webhook dispatches for the same order
 const dispatchedOrderIds = new Set();
@@ -19,9 +21,52 @@ const sanitizeUrl = (rawUrl) => {
 };
 
 /**
+ * Persists or updates notification delivery logs in the database.
+ * Safe from throwing so it never impacts order fulfillment.
+ */
+const logNotificationStatus = async ({
+  orderId,
+  notificationType = 'whatsapp_order_confirmation',
+  recipientPhone,
+  templateName = 'vrk_order_confirmation',
+  whatsappMessageId = null,
+  status = 'pending',
+  errorCode = null,
+  errorMessage = null,
+  metadata = {},
+}) => {
+  if (!supabaseServer || !orderId) return;
+
+  try {
+    const payload = {
+      order_id: orderId,
+      notification_type: notificationType,
+      recipient_phone: maskPhoneNumber(recipientPhone),
+      template_name: templateName,
+      whatsapp_message_id: whatsappMessageId,
+      status,
+      error_code: errorCode ? String(errorCode) : null,
+      error_message: errorMessage ? String(errorMessage).slice(0, 500) : null,
+      metadata,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabaseServer
+      .from('order_notifications')
+      .upsert(payload, { onConflict: 'order_id,notification_type' });
+
+    if (error) {
+      logger.warn(`Could not update order_notifications for order ${orderId}: ${error.message}`);
+    }
+  } catch (dbErr) {
+    logger.warn(`Failed persisting notification status: ${dbErr.message}`);
+  }
+};
+
+/**
  * Dispatches an order confirmation event to the configured n8n webhook URL.
  * Uses native fetch with AbortController timeout handling, exponential retry on transient
- * network/5xx errors, idempotency headers, and strict duplicate-prevention.
+ * network/5xx errors, idempotency headers, privacy-safe diagnostic logging, and database logging.
  *
  * @param {Object} order - Authoritative order record from database
  * @param {Array} [orderItems=[]] - Line items associated with the order
@@ -44,7 +89,9 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
   // Idempotency: Prevent duplicate dispatch for the same order ID
   const orderKey = String(order.id);
   if (dispatchedOrderIds.has(orderKey)) {
-    logger.warn(`n8nWebhookService: Webhook already dispatched for order ${order.order_number || order.id}; skipping to prevent duplicate messages`);
+    logger.warn(
+      `[DUPLICATE_PREVENTED] n8nWebhookService: Webhook already dispatched for order ${order.order_number || order.id}; skipping duplicate`
+    );
     return { success: true, attempts: 0, duplicateSuppressed: true };
   }
 
@@ -57,43 +104,61 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
     dispatchedOrderIds.delete(firstKey);
   }
 
-  // Payload formatted specifically for "Order Placed Webhook" and "Extract Order ID" nodes
-  // Includes orderId, order_id, id, orderNumber, and order_number at root level for guaranteed compatibility
+  // Phone normalization
+  const rawCustomerPhone = order.customer_phone || '';
+  const normalizedPhone = normalizePhoneNumber(rawCustomerPhone);
+  const digitsPhone = toDigitsOnly(rawCustomerPhone);
+  const maskedPhone = maskPhoneNumber(normalizedPhone || rawCustomerPhone);
+
+  // Structured payload matching user specification while maintaining root-level compatibility
+  const lineItems = (orderItems || []).map((i) => ({
+    productId: i.product_id,
+    name: i.product_name,
+    sku: i.sku || null,
+    price: Number(i.price || 0),
+    quantity: Number(i.quantity || 1),
+    total: Number(i.total || (Number(i.price || 0) * Number(i.quantity || 1))),
+  }));
+
   const payload = {
+    // Primary structured payload as requested
+    event: 'order.placed',
     orderId: order.id,
+    customer: {
+      name: order.customer_name || 'Valued Customer',
+      phone: normalizedPhone || rawCustomerPhone,
+      rawPhone: rawCustomerPhone,
+      digitsPhone: digitsPhone,
+      email: order.customer_email || '',
+    },
+    items: lineItems,
+    total: Number(order.total || 0),
+    currency: 'INR',
+    createdAt: order.created_at || new Date().toISOString(),
+
+    // Backwards-compatible aliases for varied n8n expression access
     order_id: order.id,
     id: order.id,
     orderNumber: order.order_number,
     order_number: order.order_number,
-    customerName: order.customer_name || '',
-    customerPhone: order.customer_phone || '',
+    customerName: order.customer_name || 'Valued Customer',
+    customerPhone: normalizedPhone || rawCustomerPhone,
     customerEmail: order.customer_email || '',
     status: order.status || 'pending',
     paymentMethod: order.payment_method || 'cod',
     paymentStatus: order.payment_status || 'pending',
     subtotal: Number(order.subtotal || 0),
     deliveryFee: Number(order.delivery_fee || 0),
-    total: Number(order.total || 0),
     deliveryAddress: order.delivery_address || '',
     houseNo: order.house_no || null,
     city: order.city || null,
     postalCode: order.postal_code || null,
     deliveryNotes: order.delivery_notes || null,
     whatsappOptIn: true,
-    itemsCount: Array.isArray(orderItems) ? orderItems.length : 0,
-    items: (orderItems || []).map((i) => ({
-      productId: i.product_id,
-      name: i.product_name,
-      sku: i.sku,
-      price: Number(i.price),
-      quantity: Number(i.quantity),
-      total: Number(i.total),
-    })),
-    createdAt: order.created_at || new Date().toISOString(),
-    event: 'ORDER_PLACED',
+    itemsCount: lineItems.length,
   };
 
-  // Configure authentication headers if provided
+  // Configure authentication headers
   const headers = {
     'Content-Type': 'application/json',
     'User-Agent': 'VRK-Supermarket-Backend/1.0',
@@ -102,7 +167,7 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
     'X-Idempotency-Key': String(order.id),
   };
 
-  // Basic auth: support N8N_WEBHOOK_USER & N8N_WEBHOOK_PASSWORD, or N8N_WEBHOOK_BASIC_AUTH
+  // Support Basic auth or Bearer auth if configured in environment
   const authUser = process.env.N8N_WEBHOOK_USER;
   const authPass = process.env.N8N_WEBHOOK_PASSWORD;
   const basicAuthHeader = process.env.N8N_WEBHOOK_BASIC_AUTH;
@@ -118,9 +183,25 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
   }
 
   const timeoutMs = parseInt(process.env.N8N_WEBHOOK_TIMEOUT_MS || '8000', 10);
-  const maxRetries = 2; // Up to 2 retries for transient 5xx or network errors
+  const maxRetries = 2;
   let attempt = 0;
   let lastError = null;
+
+  // Log start of webhook request
+  logger.info(
+    `[N8N_WEBHOOK_REQUEST_STARTED] OrderId=${order.id} OrderNumber=${order.order_number} RecipientPhone=${maskedPhone} Timestamp=${new Date().toISOString()}`
+  );
+
+  await logNotificationStatus({
+    orderId: order.id,
+    recipientPhone: normalizedPhone || rawCustomerPhone,
+    status: 'pending',
+    metadata: {
+      orderNumber: order.order_number,
+      total: order.total,
+      maskedPhone,
+    },
+  });
 
   while (attempt <= maxRetries) {
     attempt++;
@@ -128,8 +209,6 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
     let timeoutId = null;
 
     try {
-      logger.info(`Sending order confirmation webhook to n8n (attempt ${attempt}/${maxRetries + 1}) for order ${order.order_number} (${order.id})`);
-
       controller = new AbortController();
       timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -146,7 +225,21 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
       const responseText = await response.text().catch(() => '');
 
       if (response.ok) {
-        logger.info(`n8n order confirmation webhook succeeded with status ${status} for order ${order.order_number}`);
+        logger.info(
+          `[N8N_WEBHOOK_REQUEST_SUCCEEDED] OrderId=${order.id} OrderNumber=${order.order_number} StatusCode=${status} Attempts=${attempt} Timestamp=${new Date().toISOString()}`
+        );
+
+        await logNotificationStatus({
+          orderId: order.id,
+          recipientPhone: normalizedPhone || rawCustomerPhone,
+          status: 'sent',
+          metadata: {
+            attempts: attempt,
+            statusCode: status,
+            sentAt: new Date().toISOString(),
+          },
+        });
+
         return {
           success: true,
           statusCode: status,
@@ -154,19 +247,35 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
         };
       }
 
-      // Do NOT retry on 4xx client errors (400, 401, 403, 404, etc.)
+      // If client-side HTTP error (4xx)
       if (status >= 400 && status < 500) {
         const safeTarget = sanitizeUrl(webhookUrl);
-        logger.error(`n8n webhook rejected with HTTP ${status} for ${safeTarget}: ${responseText}`);
+        const errDetail = status === 403 && responseText.includes('Authorization')
+          ? 'Basic Authentication required on n8n webhook; configure N8N_WEBHOOK_USER/PASSWORD or set Authentication: None in n8n'
+          : responseText.slice(0, 200);
+
+        logger.error(
+          `[N8N_WEBHOOK_REQUEST_FAILED] OrderId=${order.id} OrderNumber=${order.order_number} StatusCode=${status} Target=${safeTarget} Reason=${errDetail} Timestamp=${new Date().toISOString()}`
+        );
+
+        await logNotificationStatus({
+          orderId: order.id,
+          recipientPhone: normalizedPhone || rawCustomerPhone,
+          status: 'failed',
+          errorCode: `HTTP_${status}`,
+          errorMessage: errDetail,
+          metadata: { attempts: attempt, statusCode: status },
+        });
+
         return {
           success: false,
           statusCode: status,
           attempts: attempt,
-          error: `HTTP ${status}: ${responseText}`,
+          error: `HTTP ${status}: ${errDetail}`,
         };
       }
 
-      throw new Error(`HTTP ${status}: ${responseText}`);
+      throw new Error(`HTTP ${status}: ${responseText.slice(0, 200)}`);
     } catch (err) {
       if (timeoutId) clearTimeout(timeoutId);
       lastError = err;
@@ -174,17 +283,30 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
       const isAbort = err.name === 'AbortError' || err.code === 20;
       const errMsg = isAbort ? `Request timed out after ${timeoutMs}ms` : err.message;
 
-      logger.warn(`n8n webhook attempt ${attempt} failed: ${errMsg}. ${attempt <= maxRetries ? 'Retrying...' : 'All attempts exhausted.'}`);
+      logger.warn(
+        `[N8N_WEBHOOK_ATTEMPT_FAILED] OrderId=${order.id} Attempt=${attempt}/${maxRetries + 1} Reason=${errMsg}`
+      );
 
       if (attempt <= maxRetries) {
-        // Exponential backoff delay: 1000ms, 2000ms
         const delay = attempt * 1000;
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
 
-  logger.error(`n8n order confirmation webhook failed after ${attempt} attempts for order ${order.order_number}: ${lastError?.message}`);
+  logger.error(
+    `[N8N_WEBHOOK_REQUEST_FAILED] OrderId=${order.id} OrderNumber=${order.order_number} ExhaustedAttempts=${attempt} Error=${lastError?.message} Timestamp=${new Date().toISOString()}`
+  );
+
+  await logNotificationStatus({
+    orderId: order.id,
+    recipientPhone: normalizedPhone || rawCustomerPhone,
+    status: 'failed',
+    errorCode: 'NETWORK_ERROR',
+    errorMessage: lastError?.message || 'Unknown network error',
+    metadata: { attempts: attempt },
+  });
+
   return {
     success: false,
     attempts: attempt,
@@ -194,5 +316,6 @@ const sendOrderConfirmationWebhook = async (order, orderItems = [], options = {}
 
 module.exports = {
   sendOrderConfirmationWebhook,
+  logNotificationStatus,
   dispatchedOrderIds,
 };

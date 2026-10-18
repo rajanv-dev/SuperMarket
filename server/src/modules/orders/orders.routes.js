@@ -2,7 +2,8 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { supabaseServer } = require('../../config/supabase');
 const { sendSuccess, sendError } = require('../../utils/response');
-const { sendOrderConfirmationWebhook } = require('../../services/n8nWebhookService');
+const { sendOrderConfirmationWebhook, logNotificationStatus } = require('../../services/n8nWebhookService');
+const { normalizePhoneNumber, maskPhoneNumber } = require('../../utils/phone');
 const logger = require('../../utils/logger');
 
 const router = express.Router();
@@ -111,9 +112,10 @@ router.post('/', async (req, res) => {
       whatsappOptIn = true,
     } = req.body;
 
-    const email = (authUser?.email || customerEmail || '').trim().toLowerCase();
-    const name = (authUser?.name || customerName || '').trim();
-    const phone = (authUser?.phone || customerPhone || '').trim();
+    const email = (customerEmail || authUser?.email || '').trim().toLowerCase();
+    const name = (customerName || authUser?.name || '').trim();
+    const rawPhone = (customerPhone || authUser?.phone || '').trim();
+    const phone = normalizePhoneNumber(rawPhone) || rawPhone;
 
     if (!email) {
       return sendError(res, { status: 400, message: 'Customer email is required for order confirmation' });
@@ -292,10 +294,15 @@ router.post('/', async (req, res) => {
         .eq('id', update.id);
     }
 
+    // ── Diagnostic Log: ORDER_CREATED ──────────────────────────────────────
+    logger.info(
+      `[ORDER_CREATED] OrderId=${newOrder.id} OrderNumber=${newOrder.order_number} CustomerName="${name}" RecipientPhone=${maskPhoneNumber(phone)} Total=₹${calculatedTotal} Timestamp=${new Date().toISOString()}`
+    );
+
     // ── Dispatch n8n WhatsApp Order Confirmation Webhook (only when opted-in) ──
     if (isOptedIn) {
       sendOrderConfirmationWebhook(newOrder, itemsToInsert).catch((webhookErr) => {
-        logger.error(`Unhandled n8n order webhook error: ${webhookErr.message}`);
+        logger.error(`[N8N_WEBHOOK_UNHANDLED_ERROR] OrderId=${newOrder.id}: ${webhookErr.message}`);
       });
     } else {
       logger.info(`Customer opted out of WhatsApp notification for order ${newOrder.order_number}`);
@@ -511,6 +518,80 @@ router.patch('/:id/status', async (req, res) => {
       data: updated,
     });
   } catch (err) {
+    return sendError(res, { status: 500, message: err.message });
+  }
+});
+
+/**
+ * POST /api/orders/notification-status
+ * Webhook status callback for n8n automation and Meta WhatsApp Cloud API status updates.
+ * Updates public.order_notifications and outputs diagnostic logs:
+ *   - [WHATSAPP_API_ACCEPTED]
+ *   - [WHATSAPP_DELIVERED]
+ *   - [WHATSAPP_FAILED]
+ */
+router.post('/notification-status', async (req, res) => {
+  try {
+    const {
+      orderId,
+      orderNumber,
+      status, // 'accepted' | 'sent' | 'delivered' | 'read' | 'failed'
+      whatsappMessageId,
+      errorCode,
+      errorMessage,
+      recipientPhone,
+      templateName,
+    } = req.body;
+
+    if (!orderId && !orderNumber) {
+      return sendError(res, { status: 400, message: 'orderId or orderNumber is required' });
+    }
+
+    let resolvedOrderId = orderId;
+    if (!resolvedOrderId && orderNumber) {
+      const { data: ord } = await supabaseServer
+        .from('orders')
+        .select('id, order_number')
+        .eq('order_number', orderNumber)
+        .maybeSingle();
+      if (ord) resolvedOrderId = ord.id;
+    }
+
+    const timestamp = new Date().toISOString();
+    const maskedPhone = maskPhoneNumber(recipientPhone);
+
+    if (status === 'accepted' || status === 'sent') {
+      logger.info(
+        `[WHATSAPP_API_ACCEPTED] OrderId=${resolvedOrderId || orderNumber} WAMID=${whatsappMessageId || 'N/A'} RecipientPhone=${maskedPhone} Timestamp=${timestamp}`
+      );
+    } else if (status === 'delivered') {
+      logger.info(
+        `[WHATSAPP_DELIVERED] OrderId=${resolvedOrderId || orderNumber} WAMID=${whatsappMessageId || 'N/A'} RecipientPhone=${maskedPhone} Timestamp=${timestamp}`
+      );
+    } else if (status === 'failed') {
+      logger.error(
+        `[WHATSAPP_FAILED] OrderId=${resolvedOrderId || orderNumber} ErrorCode=${errorCode || 'UNKNOWN'} ErrorMsg=${errorMessage || 'Delivery failed'} Timestamp=${timestamp}`
+      );
+    }
+
+    if (resolvedOrderId) {
+      await logNotificationStatus({
+        orderId: resolvedOrderId,
+        recipientPhone: recipientPhone || '',
+        templateName: templateName || 'vrk_order_confirmation',
+        whatsappMessageId,
+        status: status || 'pending',
+        errorCode,
+        errorMessage,
+      });
+    }
+
+    return sendSuccess(res, {
+      message: 'Notification status updated successfully',
+      data: { orderId: resolvedOrderId, status, timestamp },
+    });
+  } catch (err) {
+    logger.error(`Error processing notification status callback: ${err.message}`);
     return sendError(res, { status: 500, message: err.message });
   }
 });

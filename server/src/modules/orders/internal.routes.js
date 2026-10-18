@@ -1,6 +1,7 @@
 const express = require('express');
 const { supabaseServer } = require('../../config/supabase');
 const { sendSuccess, sendError } = require('../../utils/response');
+const { normalizePhoneNumber, toDigitsOnly } = require('../../utils/phone');
 const logger = require('../../utils/logger');
 
 const router = express.Router();
@@ -74,16 +75,31 @@ router.get('/:id', verifyInternalAccess, async (req, res) => {
 
     const orderItems = order.order_items || [];
 
+    const normalizedPhone = normalizePhoneNumber(order.customer_phone) || order.customer_phone;
+    const digitsPhone = toDigitsOnly(order.customer_phone);
+
     // Structured payload accommodating various n8n node expression patterns
     const responseData = {
       id: order.id,
       order_id: order.id,
-      order_number: order.order_number,
       orderNumber: order.order_number,
+      order_number: order.order_number,
+      customer: {
+        name: order.customer_name || 'Valued Customer',
+        phone: normalizedPhone,
+        rawPhone: order.customer_phone,
+        digitsPhone: digitsPhone,
+        email: order.customer_email || '',
+      },
       customer_id: order.customer_id,
       customer_name: order.customer_name,
+      customerName: order.customer_name,
       customer_email: order.customer_email,
-      customer_phone: order.customer_phone,
+      customerEmail: order.customer_email,
+      customer_phone: normalizedPhone,
+      customerPhone: normalizedPhone,
+      raw_phone: order.customer_phone,
+      currency: 'INR',
       type: order.type,
       status: order.status,
       payment_method: order.payment_method,
